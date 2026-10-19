@@ -17,7 +17,7 @@ app.use(
     origin: true, // Allow all origins dynamically (localhost, LAN IPs, preview domains)
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "x-guest-id", "X-Guest-Id"],
   })
 );
 app.use(express.json());
