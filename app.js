@@ -12,16 +12,30 @@ const taskRoutes = require("./routes/taskRoutes");
 const app = express();
 
 // Middlewares
-app.use(cors({
-  origin: [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://localhost:8081",
-    "http://localhost:8082",
-    "http://localhost:19006"
-  ],
-  credentials: true,
-}));
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:8081",
+  "http://localhost:8082",
+  "http://localhost:19006",
+  "http://127.0.0.1:8081",
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Requests without Origin, such as server-to-server requests
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`CORS blocked origin: ${origin}`));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
