@@ -96,3 +96,5 @@ app.post("/auth/logout", logoutHandler);
 app.post("/api/auth/signup", signupHandler);
 app.post("/api/auth/login", loginHandler);
 app.post("/api/auth/logout", logoutHandler);
+
+module.exports = app;
