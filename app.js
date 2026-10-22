@@ -11,13 +11,11 @@ const taskRoutes = require("./routes/taskRoutes");
 
 const app = express();
 
-// Middlewares
 app.use(
   cors({
-    origin: true, // Allow all origins dynamically (localhost, LAN IPs, preview domains)
+    origin: true,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "x-guest-id", "X-Guest-Id"],
   })
 );
 app.use(express.json());
