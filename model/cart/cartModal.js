@@ -87,13 +87,11 @@ const cartSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
             default: null,
-            index: true,
         },
         guestId: {
             type: String,
             trim: true,
             default: null,
-            index: true,
         },
         items: [cartItemSchema],
         totalQuantity: {
@@ -173,6 +171,10 @@ cartSchema.methods.calculateTotals = function () {
 cartSchema.pre("save", function () {
     this.calculateTotals();
 });
+
+// Performance compound indexes for cart lookup by user/guest and status
+cartSchema.index({ user: 1, status: 1 });
+cartSchema.index({ guestId: 1, status: 1 });
 
 const Cart = mongoose.model("Cart", cartSchema);
 

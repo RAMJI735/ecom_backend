@@ -167,28 +167,34 @@ exports.addToCart = async (req, res) => {
 
         const resolvedQty = Math.max(1, parseInt(quantity, 10) || 1);
 
-        // Resolve item: support MongoDB ObjectId, SKU (e.g. 'p1'), model, or name
-        let itemDoc = null;
-        if (mongoose.Types.ObjectId.isValid(targetItemId)) {
-            itemDoc = await Service.findById(targetItemId);
-        } else {
-            itemDoc = await Service.findOne({
+        // Run item resolution and existing cart lookup in parallel
+        const itemPromise = mongoose.Types.ObjectId.isValid(targetItemId)
+            ? Service.findById(targetItemId).lean()
+            : Service.findOne({
                 $or: [
                     { sku: String(targetItemId).trim() },
                     { model: String(targetItemId).trim() },
                     { serviceName: name || serviceName || targetItemId },
                 ],
-            });
-        }
+            }).lean();
+
+        const cartPromise = Cart.findOne({
+            status: { $in: ["active", "Pending"] },
+            ...(userId && mongoose.Types.ObjectId.isValid(userId)
+                ? { user: userId }
+                : { guestId: guestId }),
+        });
+
+        let [itemDoc, cart] = await Promise.all([itemPromise, cartPromise]);
 
         // If not found in catalog, auto-provision product/service so mock items and custom materials succeed
         if (!itemDoc) {
             let catDoc = null;
             if (category && mongoose.Types.ObjectId.isValid(category)) {
-                catDoc = await ServiceCategory.findById(category);
+                catDoc = await ServiceCategory.findById(category).lean();
             }
             if (!catDoc) {
-                catDoc = (await ServiceCategory.findOne({ categoryName: /Electrical|Cable|Switch/i })) || (await ServiceCategory.findOne());
+                catDoc = (await ServiceCategory.findOne({ categoryName: /Electrical|Cable|Switch/i }).lean()) || (await ServiceCategory.findOne().lean());
             }
 
             const itemName = (name || serviceName || `Electrical Material (${targetItemId})`).trim();
@@ -196,7 +202,7 @@ exports.addToCart = async (req, res) => {
             const itemTypeVal = (type || itemType || "product").toLowerCase();
 
             try {
-                itemDoc = await Service.create({
+                const createdService = await Service.create({
                     serviceName: itemName,
                     category: catDoc ? catDoc._id : new mongoose.Types.ObjectId(),
                     brand: req.body.brand || "Voltline",
@@ -206,8 +212,9 @@ exports.addToCart = async (req, res) => {
                     type: itemTypeVal,
                     status: "active",
                 });
+                itemDoc = createdService.toObject ? createdService.toObject() : createdService;
             } catch (err) {
-                itemDoc = await Service.findOne();
+                itemDoc = await Service.findOne().lean();
             }
         }
 
@@ -231,14 +238,7 @@ exports.addToCart = async (req, res) => {
         const resolvedCategory = category || itemDoc.category || "";
         const resolvedType = (type || itemType || itemDoc.type || "service").toLowerCase();
 
-        // Find existing active cart or initialize new one
-        let cart = await Cart.findOne({
-            status: { $in: ["active", "Pending"] },
-            ...(userId && mongoose.Types.ObjectId.isValid(userId)
-                ? { user: userId }
-                : { guestId: guestId }),
-        });
-
+        // Initialize new cart if none was found
         if (!cart) {
             cart = new Cart({
                 user: userId && mongoose.Types.ObjectId.isValid(userId) ? userId : null,
@@ -274,13 +274,12 @@ exports.addToCart = async (req, res) => {
         }
 
         await cart.save();
-
-        const populatedCart = await Cart.findById(cart._id).populate(cartPopulateOptions);
+        await cart.populate(cartPopulateOptions);
 
         return res.status(200).json({
             success: true,
             message: "Item added to cart successfully",
-            data: populatedCart,
+            data: cart,
         });
     } catch (error) {
         console.error("Error adding to cart:", error);
@@ -346,13 +345,12 @@ exports.updateCartItem = async (req, res) => {
         }
 
         await cart.save();
-
-        const populatedCart = await Cart.findById(cart._id).populate(cartPopulateOptions);
+        await cart.populate(cartPopulateOptions);
 
         return res.status(200).json({
             success: true,
             message: "Cart item updated successfully",
-            data: populatedCart,
+            data: cart,
         });
     } catch (error) {
         console.error("Error updating cart item:", error);
@@ -404,13 +402,12 @@ exports.removeCartItem = async (req, res) => {
         }
 
         await cart.save();
-
-        const populatedCart = await Cart.findById(cart._id).populate(cartPopulateOptions);
+        await cart.populate(cartPopulateOptions);
 
         return res.status(200).json({
             success: true,
             message: "Item removed from cart successfully",
-            data: populatedCart,
+            data: cart,
         });
     } catch (error) {
         console.error("Error removing cart item:", error);
@@ -609,15 +606,16 @@ exports.mergeGuestCart = async (req, res) => {
 
         await userCart.save();
 
-        // Remove guest cart
-        await Cart.findByIdAndDelete(guestCart._id);
-
-        const populatedCart = await Cart.findById(userCart._id).populate(cartPopulateOptions);
+        // Remove guest cart and populate user cart in parallel
+        await Promise.all([
+            Cart.findByIdAndDelete(guestCart._id),
+            userCart.populate(cartPopulateOptions),
+        ]);
 
         return res.status(200).json({
             success: true,
             message: "Guest cart merged with user cart successfully",
-            data: populatedCart,
+            data: userCart,
         });
     } catch (error) {
         console.error("Error merging cart:", error);
