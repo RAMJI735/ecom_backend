@@ -290,21 +290,33 @@ exports.getOrders = async (req, res) => {
             .populate({
                 path: "items.item",
                 select: "serviceName price category brand model image warranty estimated_time type",
-            });
+            })
+            .lean();
 
         if (limit) {
             const pageNum = parseInt(page) || 1;
             const limitNum = parseInt(limit) || 20;
             ordersQuery = ordersQuery.skip((pageNum - 1) * limitNum).limit(limitNum);
+
+            const [orders, total] = await Promise.all([
+                ordersQuery,
+                Order.countDocuments(query),
+            ]);
+
+            return res.status(200).json({
+                success: true,
+                count: orders.length,
+                total,
+                data: orders,
+            });
         }
 
         const orders = await ordersQuery;
-        const total = await Order.countDocuments(query);
 
         return res.status(200).json({
             success: true,
             count: orders.length,
-            total,
+            total: orders.length,
             data: orders,
         });
     } catch (error) {
@@ -331,10 +343,12 @@ exports.getOrderById = async (req, res) => {
             query.orderNumber = id.toUpperCase();
         }
 
-        const order = await Order.findOne(query).populate({
-            path: "items.item",
-            select: "serviceName price category brand model image warranty estimated_time type",
-        });
+        const order = await Order.findOne(query)
+            .populate({
+                path: "items.item",
+                select: "serviceName price category brand model image warranty estimated_time type",
+            })
+            .lean();
 
         if (!order) {
             return res.status(404).json({

@@ -145,6 +145,11 @@ const taskAssignmentSchema = new mongoose.Schema(
     }
 );
 
+// Performance indexes
+taskAssignmentSchema.index({ status: 1, createdAt: -1 });
+taskAssignmentSchema.index({ technician: 1, status: 1 });
+taskAssignmentSchema.index({ scheduledDate: 1 });
+
 // Auto-generate human-readable ticketId (e.g. SR-1021) before validation if missing
 taskAssignmentSchema.pre("validate", async function () {
     if (!this.ticketId) {

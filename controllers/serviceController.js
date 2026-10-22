@@ -206,9 +206,6 @@ exports.getAllServices = async (req, res) => {
             sortOptions = { [sortBy]: sortDirection };
         }
 
-        const total = await Service.countDocuments(query);
-
-        // Check if all items are explicitly requested (e.g. for CSV export, category services, or unbounded lists)
         const isAllRequested =
             all === "true" ||
             limit === "all" ||
@@ -217,15 +214,23 @@ exports.getAllServices = async (req, res) => {
             ((req.query.category || req.params.id || req.params.categoryId) && page === undefined && limit === undefined);
 
         if (isAllRequested) {
-            const services = await Service.find(query)
+            const rawServices = await Service.find(query)
                 .populate("category", "categoryName description image icon status")
-                .sort(sortOptions);
+                .sort(sortOptions)
+                .lean();
+
+            const services = rawServices.map((s) => {
+                s.name = s.serviceName;
+                s.productName = s.serviceName;
+                s.estimatedTime = s.estimated_time || "";
+                return s;
+            });
 
             res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
             return res.status(200).json({
                 success: true,
                 count: services.length,
-                total,
+                total: services.length,
                 page: 1,
                 limit: services.length,
                 totalPages: 1,
@@ -239,13 +244,26 @@ exports.getAllServices = async (req, res) => {
         const pageNum = Math.max(1, parseInt(page, 10) || 1);
         const limitNum = Math.max(1, parseInt(limit, 10) || 10);
         const skip = (pageNum - 1) * limitNum;
-        const totalPages = Math.ceil(total / limitNum) || 1;
 
-        const services = await Service.find(query)
-            .populate("category", "categoryName description image icon status")
-            .sort(sortOptions)
-            .skip(skip)
-            .limit(limitNum);
+        // Run count and paginated query in parallel
+        const [total, rawServices] = await Promise.all([
+            Service.countDocuments(query),
+            Service.find(query)
+                .populate("category", "categoryName description image icon status")
+                .sort(sortOptions)
+                .skip(skip)
+                .limit(limitNum)
+                .lean(),
+        ]);
+
+        const services = rawServices.map((s) => {
+            s.name = s.serviceName;
+            s.productName = s.serviceName;
+            s.estimatedTime = s.estimated_time || "";
+            return s;
+        });
+
+        const totalPages = Math.ceil(total / limitNum) || 1;
 
         res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
         return res.status(200).json({
@@ -281,7 +299,9 @@ exports.getServiceById = async (req, res) => {
 
         let service = null;
         if (mongoose.Types.ObjectId.isValid(id)) {
-            service = await Service.findById(id).populate("category", "categoryName description image icon status");
+            service = await Service.findById(id)
+                .populate("category", "categoryName description image icon status")
+                .lean();
         } else {
             service = await Service.findOne({
                 $or: [
@@ -289,7 +309,9 @@ exports.getServiceById = async (req, res) => {
                     { model: String(id).trim() },
                     { serviceName: new RegExp("^" + id + "$", "i") },
                 ]
-            }).populate("category", "categoryName description image icon status");
+            })
+                .populate("category", "categoryName description image icon status")
+                .lean();
         }
 
         if (!service) {
@@ -298,6 +320,10 @@ exports.getServiceById = async (req, res) => {
                 message: "Service or product not found",
             });
         }
+
+        service.name = service.serviceName;
+        service.productName = service.serviceName;
+        service.estimatedTime = service.estimated_time || "";
 
         res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
         return res.status(200).json({

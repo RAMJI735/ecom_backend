@@ -148,6 +148,11 @@ const orderSchema = new mongoose.Schema(
     }
 );
 
+// Performance indexes
+orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index({ guestId: 1, createdAt: -1 });
+orderSchema.index({ orderStatus: 1, createdAt: -1 });
+
 const Order = mongoose.model("Order", orderSchema);
 
 module.exports = Order;

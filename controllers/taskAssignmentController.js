@@ -139,20 +139,27 @@ exports.getAllTasks = async (req, res) => {
         const sortDirection = sortOrder === "asc" || sortOrder === "1" ? 1 : -1;
         const sortOptions = { [sortBy]: sortDirection };
 
-        const total = await TaskAssignment.countDocuments(query);
         const isAllRequested = all === "true" || limit === "all" || limit === "0" || limit === 0;
 
         if (isAllRequested) {
-            const tasks = await TaskAssignment.find(query)
+            const rawTasks = await TaskAssignment.find(query)
                 .populate("technician", "name phone email specialization status avatar")
                 .populate("service", "serviceName price category brand")
-                .sort(sortOptions);
+                .sort(sortOptions)
+                .lean();
+
+            const tasks = rawTasks.map((t) => {
+                t.taskName = t.serviceName;
+                t.customerName = t.customer?.name || "";
+                t.customerPhone = t.customer?.phone || "";
+                return t;
+            });
 
             res.set("Cache-Control", "no-cache, no-store, must-revalidate");
             return res.status(200).json({
                 success: true,
                 count: tasks.length,
-                total,
+                total: tasks.length,
                 page: 1,
                 limit: tasks.length,
                 totalPages: 1,
@@ -165,14 +172,27 @@ exports.getAllTasks = async (req, res) => {
         const pageNum = Math.max(1, parseInt(page, 10) || 1);
         const limitNum = Math.max(1, parseInt(limit, 10) || 10);
         const skip = (pageNum - 1) * limitNum;
-        const totalPages = Math.ceil(total / limitNum) || 1;
 
-        const tasks = await TaskAssignment.find(query)
-            .populate("technician", "name phone email specialization status avatar")
-            .populate("service", "serviceName price category brand")
-            .sort(sortOptions)
-            .skip(skip)
-            .limit(limitNum);
+        // Run count and paginated query in parallel
+        const [total, rawTasks] = await Promise.all([
+            TaskAssignment.countDocuments(query),
+            TaskAssignment.find(query)
+                .populate("technician", "name phone email specialization status avatar")
+                .populate("service", "serviceName price category brand")
+                .sort(sortOptions)
+                .skip(skip)
+                .limit(limitNum)
+                .lean(),
+        ]);
+
+        const tasks = rawTasks.map((t) => {
+            t.taskName = t.serviceName;
+            t.customerName = t.customer?.name || "";
+            t.customerPhone = t.customer?.phone || "";
+            return t;
+        });
+
+        const totalPages = Math.ceil(total / limitNum) || 1;
 
         res.set("Cache-Control", "no-cache, no-store, must-revalidate");
         return res.status(200).json({
@@ -201,7 +221,8 @@ exports.getTaskById = async (req, res) => {
         const { id } = req.params;
         const task = await TaskAssignment.findById(id)
             .populate("technician", "name phone email specialization status avatar")
-            .populate("service", "serviceName price category brand model image");
+            .populate("service", "serviceName price category brand model image")
+            .lean();
 
         if (!task) {
             return res.status(404).json({
@@ -209,6 +230,10 @@ exports.getTaskById = async (req, res) => {
                 message: "Service request / task not found",
             });
         }
+
+        task.taskName = task.serviceName;
+        task.customerName = task.customer?.name || "";
+        task.customerPhone = task.customer?.phone || "";
 
         res.set("Cache-Control", "no-cache, no-store, must-revalidate");
         return res.status(200).json({

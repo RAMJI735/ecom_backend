@@ -111,17 +111,16 @@ exports.getAllTechnicians = async (req, res) => {
         const sortDirection = sortOrder === "asc" || sortOrder === "1" ? 1 : -1;
         const sortOptions = { [sortBy]: sortDirection };
 
-        const total = await Technician.countDocuments(query);
         const isAllRequested = all === "true" || limit === "all" || limit === "0" || limit === 0;
 
         if (isAllRequested) {
-            const technicians = await Technician.find(query).sort(sortOptions);
+            const technicians = await Technician.find(query).sort(sortOptions).lean();
 
             res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
             return res.status(200).json({
                 success: true,
                 count: technicians.length,
-                total,
+                total: technicians.length,
                 page: 1,
                 limit: technicians.length,
                 totalPages: 1,
@@ -134,12 +133,18 @@ exports.getAllTechnicians = async (req, res) => {
         const pageNum = Math.max(1, parseInt(page, 10) || 1);
         const limitNum = Math.max(1, parseInt(limit, 10) || 10);
         const skip = (pageNum - 1) * limitNum;
-        const totalPages = Math.ceil(total / limitNum) || 1;
 
-        const technicians = await Technician.find(query)
-            .sort(sortOptions)
-            .skip(skip)
-            .limit(limitNum);
+        // Run count and paginated query in parallel
+        const [total, technicians] = await Promise.all([
+            Technician.countDocuments(query),
+            Technician.find(query)
+                .sort(sortOptions)
+                .skip(skip)
+                .limit(limitNum)
+                .lean(),
+        ]);
+
+        const totalPages = Math.ceil(total / limitNum) || 1;
 
         res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
         return res.status(200).json({
@@ -174,7 +179,8 @@ exports.getAvailableTechnicians = async (req, res) => {
 
         const technicians = await Technician.find(query)
             .select("name phone email specialization status avatar")
-            .sort({ name: 1 });
+            .sort({ name: 1 })
+            .lean();
 
         return res.status(200).json({
             success: true,

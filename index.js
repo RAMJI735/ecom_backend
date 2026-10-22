@@ -7,7 +7,12 @@ const PORT = process.env.PORT || 8000;
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/electrical_ecom";
 
 mongoose
-    .connect(MONGODB_URI)
+    .connect(MONGODB_URI, {
+        maxPoolSize: 50,
+        minPoolSize: 5,
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000,
+    })
     .then(() => {
         console.log("Database connected successfully");
         app.listen(PORT, () => {

@@ -81,8 +81,6 @@ exports.getAllCategories = async (req, res) => {
         const sortDirection = sortOrder === "asc" || sortOrder === "1" ? 1 : -1;
         const sortOptions = { [sortBy]: sortDirection };
 
-        const total = await ServiceCategory.countDocuments(query);
-
         // Check if pagination should be applied
         const isAllRequested = all === "true" || limit === "all" || limit === "0" || limit === 0;
         const shouldPaginate = !isAllRequested && (page !== undefined || limit !== undefined || req.query.paginate === "true");
@@ -92,10 +90,15 @@ exports.getAllCategories = async (req, res) => {
             const limitNum = Math.max(1, parseInt(limit, 10) || 10);
             const skip = (pageNum - 1) * limitNum;
 
-            const categories = await ServiceCategory.find(query)
-                .sort(sortOptions)
-                .skip(skip)
-                .limit(limitNum);
+            // Execute count and paginated query in parallel
+            const [total, categories] = await Promise.all([
+                ServiceCategory.countDocuments(query),
+                ServiceCategory.find(query)
+                    .sort(sortOptions)
+                    .skip(skip)
+                    .limit(limitNum)
+                    .lean(),
+            ]);
 
             res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
             return res.status(200).json({
@@ -109,13 +112,16 @@ exports.getAllCategories = async (req, res) => {
             });
         }
 
-        const categories = await ServiceCategory.find(query).sort(sortOptions);
+        // Unpaginated: single round-trip with .lean()
+        const categories = await ServiceCategory.find(query)
+            .sort(sortOptions)
+            .lean();
 
         res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
         return res.status(200).json({
             success: true,
             count: categories.length,
-            total,
+            total: categories.length,
             page: 1,
             limit: categories.length,
             totalPages: 1,
@@ -134,7 +140,7 @@ exports.getAllCategories = async (req, res) => {
 exports.getCategoryById = async (req, res) => {
     try {
         const { id } = req.params;
-        const category = await ServiceCategory.findById(id);
+        const category = await ServiceCategory.findById(id).lean();
 
         if (!category) {
             return res.status(404).json({

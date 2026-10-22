@@ -8,13 +8,15 @@ const {
     deleteCategory,
 } = require("../controllers/serviceCategoryController");
 
+const { cacheControl } = require("../utils/cacheMiddleware");
+
 // Service Category CRUD routes
 router.route("/")
     .post(createCategory)
-    .get(getAllCategories);
+    .get(cacheControl("public, s-maxage=60, stale-while-revalidate=300"), getAllCategories);
 
 router.route("/:id")
-    .get(getCategoryById)
+    .get(cacheControl("public, s-maxage=60, stale-while-revalidate=300"), getCategoryById)
     .put(updateCategory)
     .patch(updateCategory)
     .delete(deleteCategory);

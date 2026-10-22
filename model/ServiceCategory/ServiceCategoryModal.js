@@ -39,10 +39,9 @@ const serviceCategorySchema = new mongoose.Schema(
     }
 );
 
-// Virtual alias so both `name` and `categoryName` can be accessed seamlessly
-// serviceCategorySchema.virtual("name").get(function () {
-//     return this.categoryName;
-// });
+// Performance indexes
+serviceCategorySchema.index({ status: 1, createdAt: -1 });
+serviceCategorySchema.index({ createdAt: -1 });
 
 const ServiceCategory = mongoose.model("ServiceCategory", serviceCategorySchema);
 

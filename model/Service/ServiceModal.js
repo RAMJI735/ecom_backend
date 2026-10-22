@@ -91,10 +91,12 @@ serviceSchema.virtual("productName").get(function () {
     return this.serviceName;
 });
 
-// Virtual alias so `estimatedTime` can be accessed seamlessly
-serviceSchema.virtual("estimatedTime").get(function () {
-    return this.estimated_time;
-});
+// Performance indexes
+serviceSchema.index({ category: 1, status: 1, createdAt: -1 });
+serviceSchema.index({ type: 1, status: 1, createdAt: -1 });
+serviceSchema.index({ status: 1, createdAt: -1 });
+serviceSchema.index({ price: 1 });
+serviceSchema.index({ brand: 1 });
 
 const Service = mongoose.model("Service", serviceSchema);
 
