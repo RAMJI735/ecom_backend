@@ -249,33 +249,33 @@ exports.getAllServices = async (req, res) => {
         const [total, rawServices] = await Promise.all([
             Service.countDocuments(query),
             Service.find(query)
-                .populate("category", "categoryName description image icon status")
+                .select("serviceName price estimated_time stock warranty image")
                 .sort(sortOptions)
                 .skip(skip)
                 .limit(limitNum)
                 .lean(),
         ]);
 
-        const services = rawServices.map((s) => {
-            s.name = s.serviceName;
-            s.productName = s.serviceName;
-            s.estimatedTime = s.estimated_time || "";
-            return s;
-        });
+        // const services = rawServices.map((s) => {
+        //     s.name = s.serviceName;
+        //     s.productName = s.serviceName;
+        //     s.estimatedTime = s.estimated_time || "";
+        //     return s;
+        // });
 
         const totalPages = Math.ceil(total / limitNum) || 1;
 
         res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
         return res.status(200).json({
             success: true,
-            count: services.length,
+            count: rawServices.length,
             total,
             page: pageNum,
             limit: limitNum,
             totalPages,
             hasNextPage: pageNum < totalPages,
             hasPrevPage: pageNum > 1,
-            data: services,
+            data: rawServices,
         });
     } catch (error) {
         console.error("Error fetching services:", error);
