@@ -116,7 +116,6 @@ exports.getAllTechnicians = async (req, res) => {
         if (isAllRequested) {
             const technicians = await Technician.find(query).sort(sortOptions).lean();
 
-            res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
             return res.status(200).json({
                 success: true,
                 count: technicians.length,
@@ -146,7 +145,6 @@ exports.getAllTechnicians = async (req, res) => {
 
         const totalPages = Math.ceil(total / limitNum) || 1;
 
-        res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
         return res.status(200).json({
             success: true,
             count: technicians.length,
@@ -214,7 +212,6 @@ exports.getTechnicianById = async (req, res) => {
             status: { $in: ["Assigned", "In Progress"] },
         }).sort({ scheduledDate: 1 });
 
-        res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
         return res.status(200).json({
             success: true,
             data: {

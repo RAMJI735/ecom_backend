@@ -8,15 +8,15 @@ const {
     deleteCategory,
 } = require("../controllers/serviceCategoryController");
 
-const { cacheControl } = require("../utils/cacheMiddleware");
+const publicCache = require("../utils/cacheMiddleware");
 
 // Service Category CRUD routes
 router.route("/")
     .post(createCategory)
-    .get(cacheControl("public, s-maxage=60, stale-while-revalidate=300"), getAllCategories);
+    .get(publicCache, getAllCategories);
 
 router.route("/:id")
-    .get(cacheControl("public, s-maxage=60, stale-while-revalidate=300"), getCategoryById)
+    .get(publicCache, getCategoryById)
     .put(updateCategory)
     .patch(updateCategory)
     .delete(deleteCategory);
@@ -26,7 +26,7 @@ const ServiceCategory = require("../model/ServiceCategory/ServiceCategoryModal")
 const { getAllServices } = require("../controllers/serviceController");
 
 // Get services under a specific category
-router.get("/:id/services", async (req, res, next) => {
+router.get("/:id/services", publicCache, async (req, res, next) => {
     try {
         const { id } = req.params;
         if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -50,7 +50,7 @@ router.get("/:id/services", async (req, res, next) => {
 });
 
 // Get products under a specific category
-router.get("/:id/products", async (req, res, next) => {
+router.get("/:id/products", publicCache, async (req, res, next) => {
     try {
         const { id } = req.params;
         if (!mongoose.Types.ObjectId.isValid(id)) {

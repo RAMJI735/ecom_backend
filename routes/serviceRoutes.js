@@ -8,15 +8,15 @@ const {
     deleteService,
 } = require("../controllers/serviceController");
 
-const { cacheControl } = require("../utils/cacheMiddleware");
+const publicCache = require("../utils/cacheMiddleware");
 
 // Service Details CRUD routes
 router.route("/")
     .post(createService)
-    .get(cacheControl("public, s-maxage=60, stale-while-revalidate=300"), getAllServices);
+    .get(publicCache, getAllServices);
 
 router.route("/:id")
-    .get(cacheControl("public, s-maxage=60, stale-while-revalidate=300"), getServiceById)
+    .get(publicCache, getServiceById)
     .put(updateService)
     .patch(updateService)
     .delete(deleteService);

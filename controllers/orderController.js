@@ -4,9 +4,8 @@ const Order = require("../model/order/OrderModal");
 const Cart = require("../model/cart/cartModal");
 const Service = require("../model/Service/ServiceModal");
 
-const resolveUserOrGuest = (req) => {
+const resolveUser = (req) => {
     let userId = req.user?.id || req.user?._id || req.params?.userId || req.query?.userId || req.body?.userId || null;
-    let guestId = req.headers["x-guest-id"] || req.query?.guestId || req.body?.guestId || null;
 
     if (!userId) {
         const authHeader = req.headers.authorization;
@@ -31,12 +30,15 @@ const resolveUserOrGuest = (req) => {
                     userId = decoded.id || decoded._id;
                 }
             } catch (err) {
-                // Ignore token error
+                // Token invalid
             }
         }
     }
 
-    return { userId, guestId };
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+        return userId.toString();
+    }
+    return null;
 };
 
 // Generate friendly order number like VOLT-20261015-8491
@@ -52,7 +54,13 @@ const generateOrderNumber = () => {
  */
 exports.createOrder = async (req, res) => {
     try {
-        const { userId, guestId } = resolveUserOrGuest(req);
+        const userId = resolveUser(req);
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required. Please log in to place an order.",
+            });
+        }
         const {
             items: rawItems,
             shippingAddress,
@@ -94,17 +102,7 @@ exports.createOrder = async (req, res) => {
             }
         } else {
             // Pull from active cart
-            const filter = { status: { $in: ["active", "Pending"] } };
-            if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-                filter.user = userId;
-            } else if (guestId) {
-                filter.guestId = guestId;
-            } else {
-                return res.status(400).json({
-                    success: false,
-                    message: "User ID or Guest ID required when ordering from cart",
-                });
-            }
+            const filter = { status: { $in: ["active", "Pending"] }, user: userId };
 
             const cart = await Cart.findOne(filter);
             if (!cart || !Array.isArray(cart.items) || cart.items.length === 0) {
@@ -150,7 +148,6 @@ exports.createOrder = async (req, res) => {
         const newOrder = new Order({
             orderNumber: uniqueOrderNumber,
             user: userId && mongoose.Types.ObjectId.isValid(userId) ? userId : null,
-            guestId: guestId || null,
             items: orderItems,
             shippingAddress: {
                 fullName: shippingAddress.fullName.trim(),
@@ -199,30 +196,20 @@ exports.createOrder = async (req, res) => {
 
         await newOrder.save();
 
-        // Clear active cart on both user and guest accounts if desired
-        if (clearCartOnSuccess) {
+        // Clear active cart on user account
+        if (clearCartOnSuccess && userId) {
             try {
-                const orConditions = [];
-                if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-                    orConditions.push({ user: userId });
-                }
-                if (guestId) {
-                    orConditions.push({ guestId: guestId });
-                }
+                const carts = await Cart.find({
+                    user: userId,
+                    status: { $in: ["active", "Pending"] },
+                });
 
-                if (orConditions.length > 0) {
-                    const carts = await Cart.find({
-                        $or: orConditions,
-                        status: { $in: ["active", "Pending"] },
-                    });
-
-                    for (const c of carts) {
-                        c.items = [];
-                        c.couponCode = "";
-                        c.discount = 0;
-                        c.calculateTotals();
-                        await c.save();
-                    }
+                for (const c of carts) {
+                    c.items = [];
+                    c.couponCode = "";
+                    c.discount = 0;
+                    c.calculateTotals();
+                    await c.save();
                 }
             } catch (clearErr) {
                 console.error("Cart clear post-order error:", clearErr);
@@ -250,23 +237,18 @@ exports.createOrder = async (req, res) => {
 
 /**
  * GET /api/orders
- * Get orders for active user or guest
+ * Get orders for active user
  */
 exports.getOrders = async (req, res) => {
     try {
-        const { userId, guestId } = resolveUserOrGuest(req);
+        const userId = resolveUser(req);
         const { all, status, search, limit, page, sort } = req.query;
 
         const isAll = all === "true" || all === true;
         const query = {};
 
-        // If not explicitly requesting all orders, scope to user/guest if provided
-        if (!isAll && (userId || guestId)) {
-            if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-                query.user = userId;
-            } else if (guestId) {
-                query.guestId = guestId;
-            }
+        if (!isAll && userId) {
+            query.user = userId;
         }
 
         // Filter by status if provided (case-insensitive)

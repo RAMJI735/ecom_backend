@@ -5,17 +5,14 @@ const Service = require("../model/Service/ServiceModal");
 const ServiceCategory = require("../model/ServiceCategory/ServiceCategoryModal");
 
 /**
- * Helper to identify userId and/or guestId from request:
+ * Helper to identify authenticated userId from request:
  * - Express request user (if auth middleware is present)
  * - JWT Authorization header or cookie
  * - Explicit query params, body, or route params
- * - Guest identifier (header x-guest-id or body/query guestId)
  */
-const resolveUserOrGuest = (req) => {
+const resolveUser = (req) => {
     let userId = req.user?.id || req.user?._id || req.params?.userId || req.query?.userId || req.body?.userId || null;
-    let guestId = req.headers["x-guest-id"] || req.query?.guestId || req.body?.guestId || null;
 
-    // Check token from headers if userId is not explicitly provided
     if (!userId) {
         const authHeader = req.headers.authorization;
         let token = null;
@@ -39,12 +36,15 @@ const resolveUserOrGuest = (req) => {
                     userId = decoded.id || decoded._id;
                 }
             } catch (err) {
-                // Token invalid or expired; proceed with guest or explicit IDs
+                // Token invalid or expired
             }
         }
     }
 
-    return { userId, guestId };
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+        return userId.toString();
+    }
+    return null;
 };
 
 /**
@@ -56,32 +56,29 @@ const cartPopulateOptions = {
 };
 
 /**
- * Helper to find active cart for user or guest
+ * Helper to find active cart for user
  */
-const findCart = async (userId, guestId) => {
-    const filter = { status: { $in: ["active", "Pending"] } };
-
-    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-        filter.user = userId;
-    } else if (guestId) {
-        filter.guestId = guestId;
-    } else {
+const findCart = async (userId) => {
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
         return null;
     }
-
-    return await Cart.findOne(filter).populate(cartPopulateOptions);
+    return await Cart.findOne({
+        user: userId,
+        status: { $in: ["active", "Pending"] },
+    }).populate(cartPopulateOptions);
 };
 
-// GET /api/cart - Get current user/guest cart
+// GET /api/cart - Get current user cart
 exports.getCart = async (req, res) => {
     try {
-        const { userId, guestId } = resolveUserOrGuest(req);
+        const userId = resolveUser(req);
 
-        if (!userId && !guestId) {
+        if (!userId) {
             return res.status(200).json({
                 success: true,
-                message: "No user or guest identifier provided; returning empty cart template",
+                message: "No user logged in; returning empty cart template",
                 data: {
+                    user: null,
                     items: [],
                     totalQuantity: 0,
                     totalPrice: 0,
@@ -93,15 +90,14 @@ exports.getCart = async (req, res) => {
             });
         }
 
-        let cart = await findCart(userId, guestId);
+        let cart = await findCart(userId);
 
         if (!cart) {
             return res.status(200).json({
                 success: true,
                 message: "Cart is empty",
                 data: {
-                    user: userId || null,
-                    guestId: guestId || null,
+                    user: userId,
                     items: [],
                     totalQuantity: 0,
                     totalPrice: 0,
@@ -130,12 +126,12 @@ exports.getCart = async (req, res) => {
 // POST /api/cart/add or POST /api/cart - Add item (service or product) to cart
 exports.addToCart = async (req, res) => {
     try {
-        const { userId, guestId } = resolveUserOrGuest(req);
+        const userId = resolveUser(req);
 
-        if (!userId && !guestId) {
-            return res.status(400).json({
+        if (!userId) {
+            return res.status(401).json({
                 success: false,
-                message: "User ID or Guest ID is required to add items to cart",
+                message: "Authentication required. Please log in to add items to your cart.",
             });
         }
 
@@ -180,9 +176,7 @@ exports.addToCart = async (req, res) => {
 
         const cartPromise = Cart.findOne({
             status: { $in: ["active", "Pending"] },
-            ...(userId && mongoose.Types.ObjectId.isValid(userId)
-                ? { user: userId }
-                : { guestId: guestId }),
+            user: userId,
         });
 
         let [itemDoc, cart] = await Promise.all([itemPromise, cartPromise]);
@@ -241,8 +235,7 @@ exports.addToCart = async (req, res) => {
         // Initialize new cart if none was found
         if (!cart) {
             cart = new Cart({
-                user: userId && mongoose.Types.ObjectId.isValid(userId) ? userId : null,
-                guestId: guestId || null,
+                user: userId,
                 items: [],
                 status: "active",
             });
@@ -293,7 +286,13 @@ exports.addToCart = async (req, res) => {
 // PUT/PATCH /api/cart/items/:itemId - Update item quantity or notes
 exports.updateCartItem = async (req, res) => {
     try {
-        const { userId, guestId } = resolveUserOrGuest(req);
+        const userId = resolveUser(req);
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required. Please log in.",
+            });
+        }
         const targetId = req.params.itemId || req.body.itemId;
         const { quantity, notes } = req.body;
 
@@ -306,9 +305,7 @@ exports.updateCartItem = async (req, res) => {
 
         let cart = await Cart.findOne({
             status: { $in: ["active", "Pending"] },
-            ...(userId && mongoose.Types.ObjectId.isValid(userId)
-                ? { user: userId }
-                : { guestId: guestId }),
+            user: userId,
         });
 
         if (!cart) {
@@ -364,7 +361,13 @@ exports.updateCartItem = async (req, res) => {
 // DELETE /api/cart/items/:itemId or /api/cart/remove/:itemId - Remove item from cart
 exports.removeCartItem = async (req, res) => {
     try {
-        const { userId, guestId } = resolveUserOrGuest(req);
+        const userId = resolveUser(req);
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required. Please log in.",
+            });
+        }
         const targetId = req.params.itemId || req.body.itemId;
 
         if (!targetId) {
@@ -376,9 +379,7 @@ exports.removeCartItem = async (req, res) => {
 
         let cart = await Cart.findOne({
             status: { $in: ["active", "Pending"] },
-            ...(userId && mongoose.Types.ObjectId.isValid(userId)
-                ? { user: userId }
-                : { guestId: guestId }),
+            user: userId,
         });
 
         if (!cart) {
@@ -421,13 +422,17 @@ exports.removeCartItem = async (req, res) => {
 // DELETE /api/cart or /api/cart/clear - Clear all items from cart
 exports.clearCart = async (req, res) => {
     try {
-        const { userId, guestId } = resolveUserOrGuest(req);
+        const userId = resolveUser(req);
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required. Please log in.",
+            });
+        }
 
         let cart = await Cart.findOne({
             status: { $in: ["active", "Pending"] },
-            ...(userId && mongoose.Types.ObjectId.isValid(userId)
-                ? { user: userId }
-                : { guestId: guestId }),
+            user: userId,
         });
 
         if (!cart) {
@@ -466,7 +471,13 @@ exports.clearCart = async (req, res) => {
 // POST /api/cart/apply-coupon - Apply coupon / discount
 exports.applyCoupon = async (req, res) => {
     try {
-        const { userId, guestId } = resolveUserOrGuest(req);
+        const userId = resolveUser(req);
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required. Please log in.",
+            });
+        }
         const { couponCode, discountAmount, discountPercent } = req.body;
 
         if (!couponCode) {
@@ -478,9 +489,7 @@ exports.applyCoupon = async (req, res) => {
 
         let cart = await Cart.findOne({
             status: { $in: ["active", "Pending"] },
-            ...(userId && mongoose.Types.ObjectId.isValid(userId)
-                ? { user: userId }
-                : { guestId: guestId }),
+            user: userId,
         });
 
         if (!cart || cart.items.length === 0) {
@@ -522,13 +531,17 @@ exports.applyCoupon = async (req, res) => {
 // POST /api/cart/remove-coupon - Remove applied coupon
 exports.removeCoupon = async (req, res) => {
     try {
-        const { userId, guestId } = resolveUserOrGuest(req);
+        const userId = resolveUser(req);
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required. Please log in.",
+            });
+        }
 
         let cart = await Cart.findOne({
             status: { $in: ["active", "Pending"] },
-            ...(userId && mongoose.Types.ObjectId.isValid(userId)
-                ? { user: userId }
-                : { guestId: guestId }),
+            user: userId,
         });
 
         if (!cart) {
@@ -556,72 +569,29 @@ exports.removeCoupon = async (req, res) => {
     }
 };
 
-// POST /api/cart/merge - Merge guest cart items into user cart on login
+// POST /api/cart/merge - Sync user cart
 exports.mergeGuestCart = async (req, res) => {
     try {
-        const { userId: resolvedUserId, guestId: resolvedGuestId } = resolveUserOrGuest(req);
-        const guestId = req.body.guestId || resolvedGuestId;
-        const userId = req.body.userId || resolvedUserId;
-
-        if (!guestId || !userId) {
-            const userCart = await findCart(userId, guestId);
+        const userId = resolveUser(req);
+        if (!userId) {
             return res.status(200).json({
                 success: true,
-                message: "No cart merge required",
-                data: userCart || { items: [] },
+                message: "No user authenticated",
+                data: { items: [] },
             });
         }
 
-        const guestCart = await Cart.findOne({ guestId, status: { $in: ["active", "Pending"] } });
-        if (!guestCart || guestCart.items.length === 0) {
-            const userCart = await findCart(userId, null);
-            return res.status(200).json({
-                success: true,
-                message: "No guest cart items to merge",
-                data: userCart || { items: [] },
-            });
-        }
-
-        let userCart = await Cart.findOne({ user: userId, status: { $in: ["active", "Pending"] } });
-        if (!userCart) {
-            userCart = new Cart({
-                user: userId,
-                items: [],
-                status: "active",
-            });
-        }
-
-        // Merge guest items into user items
-        guestCart.items.forEach((guestItem) => {
-            const existingIdx = userCart.items.findIndex(
-                (item) => item.item && guestItem.item && item.item.toString() === guestItem.item.toString()
-            );
-
-            if (existingIdx > -1) {
-                userCart.items[existingIdx].quantity += guestItem.quantity;
-            } else {
-                userCart.items.push(guestItem);
-            }
-        });
-
-        await userCart.save();
-
-        // Remove guest cart and populate user cart in parallel
-        await Promise.all([
-            Cart.findByIdAndDelete(guestCart._id),
-            userCart.populate(cartPopulateOptions),
-        ]);
-
+        const userCart = await findCart(userId);
         return res.status(200).json({
             success: true,
-            message: "Guest cart merged with user cart successfully",
-            data: userCart,
+            message: "Cart synced successfully",
+            data: userCart || { items: [] },
         });
     } catch (error) {
-        console.error("Error merging cart:", error);
+        console.error("Error syncing cart:", error);
         return res.status(500).json({
             success: false,
-            message: error.message || "Failed to merge cart",
+            message: error.message || "Failed to sync cart",
         });
     }
 };

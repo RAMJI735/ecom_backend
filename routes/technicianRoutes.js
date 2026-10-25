@@ -9,17 +9,19 @@ const {
     deleteTechnician,
 } = require("../controllers/technicianController");
 
+const publicCache = require("../utils/cacheMiddleware");
+
 // Available technicians endpoint for quick dispatch dropdowns
-router.get("/available", getAvailableTechnicians);
+router.get("/available", publicCache, getAvailableTechnicians);
 
 // Technician collection CRUD routes
 router.route("/")
-    .get(getAllTechnicians)
+    .get(publicCache, getAllTechnicians)
     .post(createTechnician);
 
 // Single technician CRUD routes
 router.route("/:id")
-    .get(getTechnicianById)
+    .get(publicCache, getTechnicianById)
     .put(updateTechnician)
     .patch(updateTechnician)
     .delete(deleteTechnician);

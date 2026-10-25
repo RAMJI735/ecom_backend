@@ -226,7 +226,6 @@ exports.getAllServices = async (req, res) => {
                 return s;
             });
 
-            res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
             return res.status(200).json({
                 success: true,
                 count: services.length,
@@ -265,7 +264,6 @@ exports.getAllServices = async (req, res) => {
 
         const totalPages = Math.ceil(total / limitNum) || 1;
 
-        res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
         return res.status(200).json({
             success: true,
             count: rawServices.length,
@@ -325,7 +323,6 @@ exports.getServiceById = async (req, res) => {
         service.productName = service.serviceName;
         service.estimatedTime = service.estimated_time || "";
 
-        res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
         return res.status(200).json({
             success: true,
             data: service,

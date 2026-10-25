@@ -8,12 +8,8 @@ const phoneRegex = /^(?:(?:\+|0{0,2})91(\s*[\-]\s*)?|[0]?)?[6789]\d{9}$/;
 // Indian 6-digit PIN code: 1-9 followed by 5 digits
 const pinCodeRegex = /^[1-9][0-9]{5}$/;
 
-/**
- * Helper to identify userId and/or guestId from request
- */
-const resolveUserOrGuest = (req) => {
+const resolveUser = (req) => {
     let userId = req.user?.id || req.user?._id || req.params?.userId || req.query?.userId || req.body?.userId || null;
-    let guestId = req.headers["x-guest-id"] || req.query?.guestId || req.body?.guestId || null;
 
     if (!userId) {
         const authHeader = req.headers.authorization;
@@ -38,12 +34,15 @@ const resolveUserOrGuest = (req) => {
                     userId = decoded.id || decoded._id;
                 }
             } catch (err) {
-                // Ignore invalid token
+                // Token invalid
             }
         }
     }
 
-    return { userId, guestId };
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+        return userId.toString();
+    }
+    return null;
 };
 
 /**
@@ -150,26 +149,20 @@ const validateAddressFields = ({
 
 /**
  * GET /api/addresses
- * Get all addresses for current user or guest
+ * Get all addresses for current user
  */
 exports.getAddresses = async (req, res) => {
     try {
-        const { userId, guestId } = resolveUserOrGuest(req);
+        const userId = resolveUser(req);
 
-        if (!userId && !guestId) {
-            return res.status(200).json({
-                success: true,
-                count: 0,
-                data: [],
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required. Please log in to view addresses.",
             });
         }
 
-        const query = {};
-        if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-            query.user = userId;
-        } else if (guestId) {
-            query.guestId = guestId;
-        }
+        const query = { user: userId };
 
         const addresses = await Address.find(query).sort({ isDefault: -1, updatedAt: -1 });
 
@@ -229,7 +222,14 @@ exports.getAddressById = async (req, res) => {
  */
 exports.createAddress = async (req, res) => {
     try {
-        const { userId, guestId } = resolveUserOrGuest(req);
+        const userId = resolveUser(req);
+
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required. Please log in to add addresses.",
+            });
+        }
 
         const {
             fullName,
@@ -278,12 +278,7 @@ exports.createAddress = async (req, res) => {
             });
         }
 
-        const ownerQuery = {};
-        if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-            ownerQuery.user = userId;
-        } else if (guestId) {
-            ownerQuery.guestId = guestId;
-        }
+        const ownerQuery = { user: userId };
 
         // Count existing addresses to determine if this should be default
         const existingCount = await Address.countDocuments(ownerQuery);
@@ -333,7 +328,6 @@ exports.createAddress = async (req, res) => {
 
         const addressData = {
             user: userId && mongoose.Types.ObjectId.isValid(userId) ? userId : null,
-            guestId: guestId || null,
             fullName: fullName.trim(),
             phone: phone.trim(),
             alternatePhone: alternatePhone ? alternatePhone.trim() : "",
@@ -405,7 +399,14 @@ exports.createAddress = async (req, res) => {
 exports.updateAddress = async (req, res) => {
     try {
         const { id } = req.params;
-        const { userId, guestId } = resolveUserOrGuest(req);
+        const userId = resolveUser(req);
+
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required. Please log in to update address.",
+            });
+        }
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
@@ -467,12 +468,7 @@ exports.updateAddress = async (req, res) => {
             });
         }
 
-        const ownerQuery = {};
-        if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-            ownerQuery.user = userId;
-        } else if (guestId) {
-            ownerQuery.guestId = guestId;
-        }
+        const ownerQuery = { user: userId };
 
         if (isDefault) {
             await Address.updateMany(ownerQuery, { isDefault: false });
@@ -568,7 +564,14 @@ exports.updateAddress = async (req, res) => {
 exports.deleteAddress = async (req, res) => {
     try {
         const { id } = req.params;
-        const { userId, guestId } = resolveUserOrGuest(req);
+        const userId = resolveUser(req);
+
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required. Please log in to delete address.",
+            });
+        }
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
@@ -588,12 +591,7 @@ exports.deleteAddress = async (req, res) => {
         const wasDefault = address.isDefault;
         await Address.findByIdAndDelete(id);
 
-        const ownerQuery = {};
-        if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-            ownerQuery.user = userId;
-        } else if (guestId) {
-            ownerQuery.guestId = guestId;
-        }
+        const ownerQuery = { user: userId };
 
         // If default address was deleted, promote first remaining address to default
         if (wasDefault) {
@@ -624,7 +622,14 @@ exports.deleteAddress = async (req, res) => {
 exports.setDefaultAddress = async (req, res) => {
     try {
         const { id } = req.params;
-        const { userId, guestId } = resolveUserOrGuest(req);
+        const userId = resolveUser(req);
+
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required. Please log in to update default address.",
+            });
+        }
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
@@ -641,12 +646,7 @@ exports.setDefaultAddress = async (req, res) => {
             });
         }
 
-        const ownerQuery = {};
-        if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-            ownerQuery.user = userId;
-        } else if (guestId) {
-            ownerQuery.guestId = guestId;
-        }
+        const ownerQuery = { user: userId };
 
         await Address.updateMany(ownerQuery, { isDefault: false });
         address.isDefault = true;

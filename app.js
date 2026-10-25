@@ -26,11 +26,18 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
+const publicCache = require("./utils/cacheMiddleware");
+
 // Health Check / Root Route
 app.get("/", (req, res) => {
   res.status(200).json({
     message: "Electrical E-commerce API is running",
   });
+});
+
+// Cache Test Route
+app.get("/api/cache-test", publicCache, (req, res) => {
+  res.status(200).send("Cache Control example");
 });
 
 // API Routes

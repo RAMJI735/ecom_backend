@@ -100,7 +100,6 @@ exports.getAllCategories = async (req, res) => {
                     .lean(),
             ]);
 
-            res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
             return res.status(200).json({
                 success: true,
                 count: categories.length,
@@ -117,7 +116,6 @@ exports.getAllCategories = async (req, res) => {
             .sort(sortOptions)
             .lean();
 
-        res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
         return res.status(200).json({
             success: true,
             count: categories.length,
@@ -149,7 +147,6 @@ exports.getCategoryById = async (req, res) => {
             });
         }
 
-        res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
         return res.status(200).json({
             success: true,
             data: category,
