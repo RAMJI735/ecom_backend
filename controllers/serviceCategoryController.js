@@ -146,7 +146,7 @@ exports.getCategoryById = async (req, res) => {
                 message: "Service category not found",
             });
         }
-
+        console.log(category);
         return res.status(200).json({
             success: true,
             data: category,
