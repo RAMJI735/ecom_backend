@@ -16,7 +16,7 @@ mongoose
     .then(() => {
         console.log("Database connected successfully");
         app.listen(PORT, () => {
-            console.log(`Server is running on port ${PORT}`);
+            console.log(`Server is running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`);
         });
     })
     .catch((err) => {
@@ -46,16 +46,17 @@ const loginHandler = async (req, res) => {
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
-        console.log(user, "user");
         const isPasswordValid = await user.comparePassword(password);
         if (!isPasswordValid) {
             return res.status(401).json({ message: "Invalid password" });
         }
 
         const token = await user.createToken();
+        const isProduction = process.env.NODE_ENV === "production";
         res.cookie("token", token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
+            secure: isProduction,
+            sameSite: isProduction ? "none" : "lax",
             maxAge: 24 * 60 * 60 * 1000,
         });
 
@@ -77,9 +78,11 @@ const loginHandler = async (req, res) => {
 
 const logoutHandler = async (req, res) => {
     try {
+        const isProduction = process.env.NODE_ENV === "production";
         res.cookie("token", "", {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
+            secure: isProduction,
+            sameSite: isProduction ? "none" : "lax",
             maxAge: 0,
         });
         return res.status(200).json({ status: 200, data: [], message: "Logout successful" });

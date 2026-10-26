@@ -13,6 +13,11 @@ const compression = require("compression");
 
 const app = express();
 
+// Trust reverse proxy (Vercel, Render, Nginx) in production
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
 // Performance: Gzip / Deflate compression for all responses
 app.use(compression());
 
@@ -32,6 +37,7 @@ const publicCache = require("./utils/cacheMiddleware");
 app.get("/", (req, res) => {
   res.status(200).json({
     message: "Electrical E-commerce API is running",
+    environment: process.env.NODE_ENV || "development",
   });
 });
 
@@ -52,5 +58,18 @@ app.use("/api/address", addressRoutes);
 app.use("/api/technicians", technicianRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/service-requests", taskRoutes);
+
+// Centralized Error Handling Middleware
+app.use((err, req, res, next) => {
+  const isProduction = process.env.NODE_ENV === "production";
+  if (!isProduction) {
+    console.error("Unhandled Error:", err);
+  }
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Internal server error",
+    ...(isProduction ? {} : { stack: err.stack }),
+  });
+});
 
 module.exports = app;

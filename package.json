@@ -4,13 +4,15 @@
   "description": "Backend API for Electrical E-commerce Application",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js"
+    "start": "cross-env NODE_ENV=production node index.js",
+    "dev": "cross-env NODE_ENV=development node --watch index.js",
+    "prod": "cross-env NODE_ENV=production node index.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
     "compression": "^1.8.2",
     "cors": "^2.8.6",
+    "cross-env": "^10.1.0",
     "dotenv": "^18.0.1",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
