@@ -1,27 +1,22 @@
 require("dotenv").config();
 const app = require("./app");
-const mongoose = require("mongoose");
+const connectDB = require("./database");
 const User = require("./model/User/UserModal");
 
 const PORT = process.env.PORT || 8000;
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/electrical_ecom";
 
-mongoose
-    .connect(MONGODB_URI, {
-        maxPoolSize: 50,
-        minPoolSize: 5,
-        serverSelectionTimeoutMS: 5000,
-        socketTimeoutMS: 45000,
-    })
-    .then(() => {
-        console.log("Database connected successfully");
-        app.listen(PORT, () => {
-            console.log(`Server is running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`);
+// Start server when run directly (local / container / VM)
+if (require.main === module || !process.env.VERCEL) {
+    connectDB()
+        .then(() => {
+            app.listen(PORT, () => {
+                console.log(`Server is running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`);
+            });
+        })
+        .catch((err) => {
+            console.error("Initial database connection error:", err.message);
         });
-    })
-    .catch((err) => {
-        console.error("Database connection error:", err);
-    });
+}
 
 const signupHandler = async (req, res) => {
     const { name, email, password, phone } = req.body;
