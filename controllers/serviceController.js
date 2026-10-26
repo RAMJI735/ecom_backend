@@ -89,6 +89,7 @@ exports.createService = async (req, res) => {
 };
 
 // Get all Services / Products (with filtering, search, pagination, and populated category)
+
 exports.getAllServices = async (req, res) => {
     try {
         const {
@@ -112,30 +113,38 @@ exports.getAllServices = async (req, res) => {
 
         const query = {};
 
-        // Category filter: supports ObjectId, categoryId param, or categoryName
-        const targetCategory = category || req.query.categoryId || req.params.categoryId || req.params.id;
+        console.log(type, "yye")
+        // Category filter
+        const targetCategory =
+            category ||
+            req.query.categoryId ||
+            req.params.categoryId ||
+            req.params.id;
+
         if (targetCategory && targetCategory !== "all") {
             const trimmedCat = String(targetCategory).trim();
-            if (mongoose.Types.ObjectId.isValid(trimmedCat) && /^[0-9a-fA-F]{24}$/.test(trimmedCat)) {
+
+            if (/^[0-9a-fA-F]{24}$/.test(trimmedCat)) {
                 query.category = new mongoose.Types.ObjectId(trimmedCat);
             } else {
                 const matchedCategory = await ServiceCategory.findOne({
-                    categoryName: { $regex: new RegExp(`^${trimmedCat}$`, "i") },
+                    categoryName: {
+                        $regex: `^${trimmedCat}$`,
+                        $options: "i",
+                    },
                 }).select("_id");
 
-                if (matchedCategory) {
-                    query.category = matchedCategory._id;
-                } else {
-                    query.category = new mongoose.Types.ObjectId();
-                }
+                query.category =
+                    matchedCategory?._id || new mongoose.Types.ObjectId();
             }
         }
 
+        // Status filter
         if (status && status !== "all") {
             query.status = status;
         }
 
-        // Determine item type (service or product)
+        // Type filter
         if (type && type !== "all") {
             query.type = type.toLowerCase();
         } else if (req.baseUrl === "/api/products") {
@@ -144,139 +153,173 @@ exports.getAllServices = async (req, res) => {
             query.type = { $ne: "product" };
         }
 
+        // Brand filter
         if (brand) {
             query.brand = { $regex: brand, $options: "i" };
         }
 
-        // Stock status filtering
+        // Stock filter
         if (stockStatus && stockStatus !== "all") {
-            if (stockStatus === "in_stock") {
-                query.stock = { $gt: 10 };
-            } else if (stockStatus === "low_stock") {
-                query.stock = { $gt: 0, $lte: 10 };
-            } else if (stockStatus === "out_of_stock") {
-                query.stock = { $lte: 0 };
+            switch (stockStatus) {
+                case "in_stock":
+                    query.stock = { $gt: 10 };
+                    break;
+
+                case "low_stock":
+                    query.stock = { $gt: 0, $lte: 10 };
+                    break;
+
+                case "out_of_stock":
+                    query.stock = { $lte: 0 };
+                    break;
             }
         }
 
-        const searchTerm = (search || q || keyword || name || "").trim();
+        // Search filter
+        const searchTerm = String(
+            search || q || keyword || name || ""
+        ).trim();
+
         if (searchTerm) {
             const orConditions = [
                 { serviceName: { $regex: searchTerm, $options: "i" } },
+                { productName: { $regex: searchTerm, $options: "i" } },
                 { description: { $regex: searchTerm, $options: "i" } },
                 { brand: { $regex: searchTerm, $options: "i" } },
                 { model: { $regex: searchTerm, $options: "i" } },
                 { sku: { $regex: searchTerm, $options: "i" } },
             ];
 
-            // Also search by category name if available
-            try {
-                const matchingCategories = await ServiceCategory.find({
-                    categoryName: { $regex: searchTerm, $options: "i" },
-                }).select("_id");
+            const matchingCategories = await ServiceCategory.find({
+                categoryName: { $regex: searchTerm, $options: "i" },
+            }).select("_id");
 
-                if (matchingCategories.length > 0) {
-                    const categoryIds = matchingCategories.map((c) => c._id);
-                    orConditions.push({ category: { $in: categoryIds } });
-                }
-            } catch (catErr) {
-                // If category lookup fails, proceed with other search fields
+            if (matchingCategories.length > 0) {
+                orConditions.push({
+                    category: {
+                        $in: matchingCategories.map((item) => item._id),
+                    },
+                });
             }
 
             query.$or = orConditions;
         }
 
+        // Price filter
         if (minPrice !== undefined || maxPrice !== undefined) {
             query.price = {};
-            if (minPrice !== undefined && minPrice !== "") query.price.$gte = Number(minPrice);
-            if (maxPrice !== undefined && maxPrice !== "") query.price.$lte = Number(maxPrice);
-            if (Object.keys(query.price).length === 0) delete query.price;
+
+            if (minPrice !== undefined && minPrice !== "") {
+                query.price.$gte = Number(minPrice);
+            }
+
+            if (maxPrice !== undefined && maxPrice !== "") {
+                query.price.$lte = Number(maxPrice);
+            }
+
+            if (Object.keys(query.price).length === 0) {
+                delete query.price;
+            }
         }
 
-        // Dynamic sorting
-        let sortOptions = { createdAt: -1 };
-        if (sortBy === "price_asc") sortOptions = { price: 1 };
-        else if (sortBy === "price_desc") sortOptions = { price: -1 };
-        else if (sortBy === "stock_asc") sortOptions = { stock: 1 };
-        else if (sortBy === "stock_desc") sortOptions = { stock: -1 };
-        else if (sortBy === "oldest") sortOptions = { createdAt: 1 };
-        else if (sortBy === "newest") sortOptions = { createdAt: -1 };
-        else if (sortBy) {
-            const sortDirection = sortOrder === "asc" || sortOrder === "1" ? 1 : -1;
-            sortOptions = { [sortBy]: sortDirection };
-        }
+        // Sorting
+        const sortMap = {
+            newest: { createdAt: -1 },
+            oldest: { createdAt: 1 },
+            price_asc: { price: 1 },
+            price_desc: { price: -1 },
+            stock_asc: { stock: 1 },
+            stock_desc: { stock: -1 },
+        };
 
+        const sortOptions = sortMap[sortBy] || {
+            [sortBy]: sortOrder === "asc" || sortOrder === "1" ? 1 : -1,
+        };
+
+        // Fetch all records when requested
         const isAllRequested =
             all === "true" ||
             limit === "all" ||
             limit === "0" ||
-            limit === 0 ||
-            ((req.query.category || req.params.id || req.params.categoryId) && page === undefined && limit === undefined);
+            (
+                (req.query.category ||
+                    req.query.categoryId ||
+                    req.params.id ||
+                    req.params.categoryId) &&
+                page === undefined &&
+                limit === undefined
+            );
 
         if (isAllRequested) {
-            const rawServices = await Service.find(query)
-                .populate("category", "categoryName description image icon status")
+            const services = await Service.find(query)
+                .populate(
+                    "category",
+                    "categoryName description image icon status"
+                )
                 .sort(sortOptions)
                 .lean();
 
-            const services = rawServices.map((s) => {
-                s.name = s.serviceName;
-                s.productName = s.serviceName;
-                s.estimatedTime = s.estimated_time || "";
-                return s;
-            });
+            const data = services.map((service) => ({
+                ...service,
+                name: service.serviceName || service.productName,
+                productName: service.productName || service.serviceName,
+                estimatedTime: service.estimated_time || "",
+            }));
 
             return res.status(200).json({
                 success: true,
-                count: services.length,
-                total: services.length,
+                count: data.length,
+                total: data.length,
                 page: 1,
-                limit: services.length,
+                limit: data.length,
                 totalPages: 1,
                 hasNextPage: false,
                 hasPrevPage: false,
-                data: services,
+                data,
             });
         }
 
-        // Default pagination: page=1, limit=10
+        // Pagination
         const pageNum = Math.max(1, parseInt(page, 10) || 1);
         const limitNum = Math.max(1, parseInt(limit, 10) || 10);
         const skip = (pageNum - 1) * limitNum;
 
-        // Run count and paginated query in parallel
-        const [total, rawServices] = await Promise.all([
+        const [total, services] = await Promise.all([
             Service.countDocuments(query),
             Service.find(query)
-                .select("serviceName price estimated_time stock warranty image")
+                .populate(
+                    "category",
+                    "categoryName description image icon status"
+                )
                 .sort(sortOptions)
                 .skip(skip)
                 .limit(limitNum)
                 .lean(),
         ]);
 
-        // const services = rawServices.map((s) => {
-        //     s.name = s.serviceName;
-        //     s.productName = s.serviceName;
-        //     s.estimatedTime = s.estimated_time || "";
-        //     return s;
-        // });
+        const data = services.map((service) => ({
+            ...service,
+            name: service.serviceName || service.productName,
+            productName: service.productName || service.serviceName,
+            estimatedTime: service.estimated_time || "",
+        }));
 
         const totalPages = Math.ceil(total / limitNum) || 1;
 
         return res.status(200).json({
             success: true,
-            count: rawServices.length,
+            count: data.length,
             total,
             page: pageNum,
             limit: limitNum,
             totalPages,
             hasNextPage: pageNum < totalPages,
             hasPrevPage: pageNum > 1,
-            data: rawServices,
+            data,
         });
     } catch (error) {
         console.error("Error fetching services:", error);
+
         return res.status(500).json({
             success: false,
             message: error.message || "Failed to fetch services",
