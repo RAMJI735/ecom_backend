@@ -1,44 +1,33 @@
 const mongoose = require("mongoose");
 
-let cachedConnection = null;
+let connPromise = null;
 
-/**
- * Connect to MongoDB with caching for serverless environments (Vercel)
- * and standalone server environments (Local / Docker / PM2).
- */
 const connectDB = async () => {
-    // If connection is already established, return it
-    if (mongoose.connection.readyState === 1) {
-        return mongoose.connection;
-    }
+    if (mongoose.connection.readyState === 1) return mongoose.connection;
 
-    // If connection is currently in progress, wait for existing promise
-    if (mongoose.connection.readyState === 2 && cachedConnection) {
-        return cachedConnection;
-    }
+    if (!connPromise) {
+        const uri = process.env.MONGODB_URI;
+        if (!uri) throw new Error("MONGODB_URI is not defined");
 
-    const uri = process.env.MONGODB_URI;
-    if (!uri) {
-        const errorMsg = "CRITICAL: MONGODB_URI is not defined in environment variables! Please add MONGODB_URI in Vercel Dashboard (Project Settings > Environment Variables) or in your .env file.";
-        console.error(errorMsg);
-        throw new Error(errorMsg);
+        connPromise = mongoose
+            .connect(uri, {
+                maxPoolSize: 3,                  // 10 → 3 (har Vercel instance apna pool kholta hai)
+                minPoolSize: 0,
+                serverSelectionTimeoutMS: 5000,
+                socketTimeoutMS: 45000,
+                bufferCommands: false,           // connect na ho to 10s hang ki jagah turant error
+                autoIndex: process.env.NODE_ENV !== "production", // cold start pe index build nahi
+            })
+            .then((m) => {
+                console.log("MongoDB connected");
+                return m.connection;
+            })
+            .catch((err) => {
+                connPromise = null;              // agli request retry kare
+                throw err;
+            });
     }
-
-    try {
-        cachedConnection = mongoose.connect(uri, {
-            maxPoolSize: 10,
-            serverSelectionTimeoutMS: 8000,
-            socketTimeoutMS: 45000,
-        });
-
-        await cachedConnection;
-        console.log("MongoDB connected successfully");
-        return mongoose.connection;
-    } catch (err) {
-        cachedConnection = null;
-        console.error("MongoDB connection failed:", err.message);
-        throw err;
-    }
+    return connPromise;
 };
 
 module.exports = connectDB;

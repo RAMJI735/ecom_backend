@@ -1,5 +1,8 @@
 {
   "version": 2,
+  "regions": [
+    "bom1"
+  ],
   "builds": [
     {
       "src": "index.js",
@@ -11,8 +14,5 @@
       "src": "/(.*)",
       "dest": "index.js"
     }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+  ]
 }
