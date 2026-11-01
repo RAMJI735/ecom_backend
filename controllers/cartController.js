@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const Cart = require("../model/cart/cartModal");
 const Service = require("../model/Service/ServiceModal");
 const ServiceCategory = require("../model/ServiceCategory/ServiceCategoryModal");
+const Coupon = require("../model/Coupon/CouponModal");
 
 /**
  * Helper to identify authenticated userId from request:
@@ -500,17 +501,48 @@ exports.applyCoupon = async (req, res) => {
         }
 
         let calculatedDiscount = 0;
-        if (discountAmount !== undefined) {
+        const normalizedCode = couponCode.toUpperCase().trim();
+        const foundCoupon = await Coupon.findOne({
+            code: normalizedCode,
+            isActive: true,
+        });
+
+        if (foundCoupon) {
+            if (foundCoupon.expiryDate && new Date(foundCoupon.expiryDate) < new Date()) {
+                return res.status(400).json({
+                    success: false,
+                    message: "This coupon code has expired",
+                });
+            }
+
+            if (cart.totalPrice < foundCoupon.minOrderValue) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Minimum order value of ₹${foundCoupon.minOrderValue} required for coupon ${foundCoupon.code}`,
+                });
+            }
+
+            if (foundCoupon.discountType === "percentage") {
+                calculatedDiscount = Math.round(((cart.totalPrice * foundCoupon.discountValue) / 100) * 100) / 100;
+                if (foundCoupon.maxDiscount && calculatedDiscount > foundCoupon.maxDiscount) {
+                    calculatedDiscount = foundCoupon.maxDiscount;
+                }
+            } else {
+                calculatedDiscount = Math.min(cart.totalPrice, foundCoupon.discountValue);
+            }
+        } else if (discountAmount !== undefined) {
             calculatedDiscount = Math.min(cart.totalPrice, Number(discountAmount) || 0);
         } else if (discountPercent !== undefined) {
             const pct = Math.min(100, Math.max(0, Number(discountPercent) || 0));
             calculatedDiscount = Math.round(((cart.totalPrice * pct) / 100) * 100) / 100;
         } else {
-            // Default 10% promo for test coupons if no fixed rule sent
-            calculatedDiscount = Math.round((cart.totalPrice * 0.1) * 100) / 100;
+            return res.status(404).json({
+                success: false,
+                message: "Invalid coupon code or offer expired",
+            });
         }
 
-        cart.couponCode = couponCode.toUpperCase().trim();
+        cart.couponCode = normalizedCode;
         cart.discount = calculatedDiscount;
         await cart.save();
 

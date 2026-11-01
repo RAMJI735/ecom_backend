@@ -8,6 +8,8 @@ const orderRoutes = require("./routes/orderRoutes");
 const addressRoutes = require("./routes/addressRoutes");
 const technicianRoutes = require("./routes/technicianRoutes");
 const taskRoutes = require("./routes/taskRoutes");
+const settingsRoutes = require("./routes/settingsRoutes");
+const couponRoutes = require("./routes/couponRoutes");
 
 const compression = require("compression");
 const mongoose = require("mongoose");
@@ -80,6 +82,8 @@ app.use("/api/address", addressRoutes);
 app.use("/api/technicians", technicianRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/service-requests", taskRoutes);
+app.use("/api/settings", settingsRoutes);
+app.use("/api/coupons", couponRoutes);
 
 // Centralized Error Handling Middleware
 app.use((err, req, res, next) => {

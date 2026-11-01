@@ -87,6 +87,82 @@ const logoutHandler = async (req, res) => {
     }
 };
 
+const jwt = require("jsonwebtoken");
+
+const updateProfileHandler = async (req, res) => {
+    try {
+        let userId = req.body.userId || req.body._id;
+        if (!userId) {
+            const authHeader = req.headers.authorization;
+            if (authHeader && authHeader.startsWith("Bearer ")) {
+                try {
+                    const decoded = jwt.verify(authHeader.split(" ")[1], process.env.JWT_SECRET || "electrical_ecom_secret_key_2026");
+                    userId = decoded.id || decoded._id;
+                } catch (e) {}
+            }
+        }
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: "User authentication required" });
+        }
+
+        const { name, phone, companyName, gstin, avatar } = req.body;
+        const updateData = {};
+        if (name) updateData.name = name.trim();
+        if (phone !== undefined) updateData.phone = phone.trim();
+        if (companyName !== undefined) updateData.companyName = companyName.trim();
+        if (gstin !== undefined) updateData.gstin = gstin.trim();
+        if (avatar !== undefined) updateData.avatar = avatar.trim();
+
+        const updatedUser = await User.findByIdAndUpdate(userId, updateData, { new: true }).select("-password");
+        if (!updatedUser) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            status: 200,
+            message: "Profile updated successfully",
+            data: updatedUser,
+        });
+    } catch (err) {
+        console.error("Profile update error:", err);
+        return res.status(500).json({ success: false, message: "Failed to update profile", error: err.message });
+    }
+};
+
+const getProfileHandler = async (req, res) => {
+    try {
+        let userId = req.query.userId || req.params.userId;
+        if (!userId) {
+            const authHeader = req.headers.authorization;
+            if (authHeader && authHeader.startsWith("Bearer ")) {
+                try {
+                    const decoded = jwt.verify(authHeader.split(" ")[1], process.env.JWT_SECRET || "electrical_ecom_secret_key_2026");
+                    userId = decoded.id || decoded._id;
+                } catch (e) {}
+            }
+        }
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: "User authentication required" });
+        }
+
+        const user = await User.findById(userId).select("-password");
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            status: 200,
+            data: user,
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: "Failed to get profile" });
+    }
+};
+
 // Original routes
 app.post("/signup/user", signupHandler);
 app.post("/login/user", loginHandler);
@@ -99,5 +175,11 @@ app.post("/auth/logout", logoutHandler);
 app.post("/api/auth/signup", signupHandler);
 app.post("/api/auth/login", loginHandler);
 app.post("/api/auth/logout", logoutHandler);
+
+// Profile routes
+app.put("/auth/profile", updateProfileHandler);
+app.put("/api/auth/profile", updateProfileHandler);
+app.get("/auth/profile", getProfileHandler);
+app.get("/api/auth/profile", getProfileHandler);
 
 module.exports = app;

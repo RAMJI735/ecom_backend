@@ -1,0 +1,347 @@
+const Settings = require("../model/Settings/SettingsModal");
+
+const DEFAULT_BANNERS = [
+    {
+        title: "Heavy Duty Cables & Modular Gear",
+        subtitle: "Up to 35% discount on ISI certified wires and industrial breakers.",
+        tag: "HIGH VOLTAGE DEALS",
+        buttonText: "EXPLORE WIRE CATALOG  →",
+        targetCategory: "wires",
+        discountText: "35% OFF",
+        image: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=800&q=80",
+        active: true,
+        order: 1,
+    },
+    {
+        title: "Modular Switches & Concealed Panels",
+        subtitle: "Premium silver-contact switches from Schneider, Legrand & Anchor.",
+        tag: "CONTRACTOR FAVORITES",
+        buttonText: "VIEW SWITCHES  →",
+        targetCategory: "switches",
+        discountText: "25% OFF",
+        image: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=800&q=80",
+        active: true,
+        order: 2,
+    },
+    {
+        title: "Industrial MCBs & Distribution Boards",
+        subtitle: "High breaking capacity circuit protection with 5-year warranty.",
+        tag: "SAFETY GUARANTEED",
+        buttonText: "EXPLORE MCBs  →",
+        targetCategory: "mcb",
+        discountText: "20% OFF",
+        image: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=800&q=80",
+        active: true,
+        order: 3,
+    },
+];
+
+const DEFAULT_ASSURANCES = [
+    {
+        title: "100% Genuine ISI Mark",
+        description: "Direct from authorized brand distributors",
+        icon: "check-circle",
+        enabled: true,
+    },
+    {
+        title: "Site Delivery Available",
+        description: "Bulk dispatch for commercial & residential",
+        icon: "truck",
+        enabled: true,
+    },
+    {
+        title: "Contractor Wholesale Rates",
+        description: "Verified trade pricing on bulk electrical orders",
+        icon: "bolt",
+        enabled: true,
+    },
+];
+
+// Helper to ensure settings document exists
+const getOrCreateSettings = async () => {
+    let settings = await Settings.findOne();
+    if (!settings) {
+        settings = new Settings({
+            storeName: "VOLTLINE STORE",
+            tagline: "Certified Electrical Supplies & Parts",
+            supportEmail: "support@voltline.in",
+            supportPhone: "+91 98765 43210",
+            whatsappNumber: "+91 98765 43210",
+            officeAddress: "Sector V, Salt Lake",
+            city: "Kolkata",
+            state: "West Bengal",
+            pincode: "700091",
+            gstin: "19AAACV1234F1Z5",
+            announcement: {
+                text: "⚡ NEXT-DAY DISPATCH • SITE DELIVERY AVAILABLE FOR ALL CONTRACTORS",
+                enabled: true,
+                type: "live",
+            },
+            heroBanners: DEFAULT_BANNERS,
+            assurances: DEFAULT_ASSURANCES,
+            commerce: {
+                freeDeliveryThreshold: 2000,
+                standardDeliveryFee: 150,
+                taxRate: 18,
+                currency: "INR",
+                currencySymbol: "₹",
+            },
+            notifications: {
+                emailAlerts: true,
+                smsAlerts: true,
+            },
+        });
+        await settings.save();
+    }
+    return settings;
+};
+
+// GET /api/settings - Fetch current settings (public)
+exports.getSettings = async (req, res) => {
+    try {
+        const settings = await getOrCreateSettings();
+        return res.status(200).json({
+            success: true,
+            data: settings,
+        });
+    } catch (error) {
+        console.error("Error retrieving settings:", error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to retrieve store settings",
+        });
+    }
+};
+
+// PUT /api/settings - Update general & store settings (admin)
+exports.updateSettings = async (req, res) => {
+    try {
+        let settings = await getOrCreateSettings();
+
+        const {
+            storeName,
+            tagline,
+            supportEmail,
+            supportPhone,
+            whatsappNumber,
+            officeAddress,
+            city,
+            state,
+            pincode,
+            gstin,
+            announcement,
+            commerce,
+            notifications,
+            heroBanners,
+            assurances,
+        } = req.body;
+
+        if (storeName !== undefined) settings.storeName = storeName.trim();
+        if (tagline !== undefined) settings.tagline = tagline.trim();
+        if (supportEmail !== undefined) settings.supportEmail = supportEmail.trim();
+        if (supportPhone !== undefined) settings.supportPhone = supportPhone.trim();
+        if (whatsappNumber !== undefined) settings.whatsappNumber = whatsappNumber.trim();
+        if (officeAddress !== undefined) settings.officeAddress = officeAddress.trim();
+        if (city !== undefined) settings.city = city.trim();
+        if (state !== undefined) settings.state = state.trim();
+        if (pincode !== undefined) settings.pincode = pincode.trim();
+        if (gstin !== undefined) settings.gstin = gstin.trim();
+
+        if (announcement) {
+            settings.announcement = {
+                text: announcement.text !== undefined ? announcement.text : settings.announcement.text,
+                enabled: announcement.enabled !== undefined ? announcement.enabled : settings.announcement.enabled,
+                type: announcement.type || settings.announcement.type || "live",
+            };
+        }
+
+        if (commerce) {
+            settings.commerce = {
+                freeDeliveryThreshold:
+                    commerce.freeDeliveryThreshold !== undefined
+                        ? Number(commerce.freeDeliveryThreshold)
+                        : settings.commerce.freeDeliveryThreshold,
+                standardDeliveryFee:
+                    commerce.standardDeliveryFee !== undefined
+                        ? Number(commerce.standardDeliveryFee)
+                        : settings.commerce.standardDeliveryFee,
+                taxRate:
+                    commerce.taxRate !== undefined
+                        ? Number(commerce.taxRate)
+                        : settings.commerce.taxRate,
+                currency: commerce.currency || settings.commerce.currency,
+                currencySymbol: commerce.currencySymbol || settings.commerce.currencySymbol,
+            };
+        }
+
+        if (notifications) {
+            settings.notifications = {
+                emailAlerts:
+                    notifications.emailAlerts !== undefined
+                        ? Boolean(notifications.emailAlerts)
+                        : settings.notifications.emailAlerts,
+                smsAlerts:
+                    notifications.smsAlerts !== undefined
+                        ? Boolean(notifications.smsAlerts)
+                        : settings.notifications.smsAlerts,
+            };
+        }
+
+        if (Array.isArray(heroBanners)) {
+            settings.heroBanners = heroBanners;
+        }
+
+        if (Array.isArray(assurances)) {
+            settings.assurances = assurances;
+        }
+
+        const saved = await settings.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Store settings updated successfully",
+            data: saved,
+        });
+    } catch (error) {
+        console.error("Error updating settings:", error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to update store settings",
+        });
+    }
+};
+
+// POST /api/settings/banners - Add a new hero banner
+exports.addHeroBanner = async (req, res) => {
+    try {
+        const settings = await getOrCreateSettings();
+        const {
+            title,
+            subtitle,
+            tag,
+            buttonText,
+            targetCategory,
+            image,
+            discountText,
+            active,
+            order,
+        } = req.body;
+
+        if (!title) {
+            return res.status(400).json({
+                success: false,
+                message: "Banner title is required",
+            });
+        }
+
+        settings.heroBanners.push({
+            title: title.trim(),
+            subtitle: subtitle ? subtitle.trim() : "",
+            tag: tag ? tag.trim() : "HIGH VOLTAGE DEALS",
+            buttonText: buttonText ? buttonText.trim() : "SHOP NOW  →",
+            targetCategory: targetCategory ? targetCategory.trim() : "all",
+            image: image ? image.trim() : "",
+            discountText: discountText ? discountText.trim() : "",
+            active: active !== undefined ? Boolean(active) : true,
+            order: order !== undefined ? Number(order) : settings.heroBanners.length + 1,
+        });
+
+        await settings.save();
+
+        return res.status(201).json({
+            success: true,
+            message: "Banner added successfully",
+            data: settings.heroBanners,
+        });
+    } catch (error) {
+        console.error("Error adding hero banner:", error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to add hero banner",
+        });
+    }
+};
+
+// PUT /api/settings/banners/:id - Update an existing hero banner
+exports.updateHeroBanner = async (req, res) => {
+    try {
+        const settings = await getOrCreateSettings();
+        const bannerId = req.params.id;
+
+        const banner = settings.heroBanners.id(bannerId);
+        if (!banner) {
+            return res.status(404).json({
+                success: false,
+                message: "Banner not found",
+            });
+        }
+
+        const {
+            title,
+            subtitle,
+            tag,
+            buttonText,
+            targetCategory,
+            image,
+            discountText,
+            active,
+            order,
+        } = req.body;
+
+        if (title !== undefined) banner.title = title.trim();
+        if (subtitle !== undefined) banner.subtitle = subtitle.trim();
+        if (tag !== undefined) banner.tag = tag.trim();
+        if (buttonText !== undefined) banner.buttonText = buttonText.trim();
+        if (targetCategory !== undefined) banner.targetCategory = targetCategory.trim();
+        if (image !== undefined) banner.image = image.trim();
+        if (discountText !== undefined) banner.discountText = discountText.trim();
+        if (active !== undefined) banner.active = Boolean(active);
+        if (order !== undefined) banner.order = Number(order);
+
+        await settings.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Banner updated successfully",
+            data: settings.heroBanners,
+        });
+    } catch (error) {
+        console.error("Error updating hero banner:", error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to update hero banner",
+        });
+    }
+};
+
+// DELETE /api/settings/banners/:id - Remove a hero banner
+exports.deleteHeroBanner = async (req, res) => {
+    try {
+        const settings = await getOrCreateSettings();
+        const bannerId = req.params.id;
+
+        const banner = settings.heroBanners.id(bannerId);
+        if (!banner) {
+            return res.status(404).json({
+                success: false,
+                message: "Banner not found",
+            });
+        }
+
+        banner.deleteOne();
+        await settings.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Banner deleted successfully",
+            data: settings.heroBanners,
+        });
+    } catch (error) {
+        console.error("Error deleting hero banner:", error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to delete hero banner",
+        });
+    }
+};
+

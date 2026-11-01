@@ -58,17 +58,25 @@ exports.createService = async (req, res) => {
         const service = new Service({
             serviceName: resolvedServiceName.trim(),
             category,
-            brand,
-            model,
-            description,
-            price,
-            estimated_time: resolvedEstimatedTime,
-            warranty,
-            image,
+            brand: brand || "VOLTLINE",
+            model: model || "",
+            description: description || "",
+            price: Number(price),
+            originalPrice: req.body.originalPrice ? Number(req.body.originalPrice) : null,
+            rating: req.body.rating !== undefined ? Number(req.body.rating) : 4.8,
+            reviewsCount: req.body.reviewsCount !== undefined ? Number(req.body.reviewsCount) : 48,
+            badge: req.body.badge ? String(req.body.badge).trim() : (type === "service" ? "SERVICE" : "VERIFIED"),
+            estimated_time: resolvedEstimatedTime || "",
+            warranty: warranty || "1 Year Manufacturer",
+            image: image || "",
+            images: Array.isArray(req.body.images) ? req.body.images : (image ? [image] : []),
+            features: Array.isArray(req.body.features) ? req.body.features : [],
+            specifications: Array.isArray(req.body.specifications) ? req.body.specifications : [],
             type: type ? type.toLowerCase() : (req.baseUrl && req.baseUrl.includes("product") ? "product" : "service"),
             sku: sku ? String(sku).trim() : "",
-            stock: stock !== undefined ? Number(stock) : 0,
-            status,
+            stock: stock !== undefined ? Number(stock) : 10,
+            inStock: req.body.inStock !== undefined ? Boolean(req.body.inStock) : true,
+            status: status || "active",
         });
 
         const savedService = await service.save();
@@ -259,12 +267,35 @@ exports.getAllServices = async (req, res) => {
                 .sort(sortOptions)
                 .lean();
 
-            const data = services.map((service) => ({
-                ...service,
-                name: service.serviceName || service.productName,
-                productName: service.productName || service.serviceName,
-                estimatedTime: service.estimated_time || "",
-            }));
+            const formatService = (service) => {
+                const price = Number(service.price) || 0;
+                const origPrice = service.originalPrice && Number(service.originalPrice) > price
+                    ? Number(service.originalPrice)
+                    : Math.round(price * 1.25);
+                const discount = origPrice > price ? Math.round(((origPrice - price) / origPrice) * 100) : 0;
+
+                return {
+                    ...service,
+                    name: service.serviceName || service.productName || "Electrical Item",
+                    productName: service.productName || service.serviceName || "Electrical Item",
+                    estimatedTime: service.estimated_time || "",
+                    brand: service.brand || "VOLTLINE",
+                    price,
+                    originalPrice: origPrice,
+                    effectiveOriginalPrice: origPrice,
+                    discountPercentage: discount,
+                    rating: typeof service.rating === "number" ? service.rating : 4.8,
+                    reviewsCount: typeof service.reviewsCount === "number" ? service.reviewsCount : 48,
+                    badge: service.badge || (service.type === "service" ? "SERVICE" : "VERIFIED"),
+                    inStock: service.inStock !== false && (service.stock === undefined || service.stock > 0),
+                    image: service.image || "",
+                    images: Array.isArray(service.images) && service.images.length > 0 ? service.images : (service.image ? [service.image] : []),
+                    features: Array.isArray(service.features) ? service.features : [],
+                    specifications: Array.isArray(service.specifications) ? service.specifications : [],
+                };
+            };
+
+            const data = services.map(formatService);
 
             return res.status(200).json({
                 success: true,
@@ -297,12 +328,35 @@ exports.getAllServices = async (req, res) => {
                 .lean(),
         ]);
 
-        const data = services.map((service) => ({
-            ...service,
-            name: service.serviceName || service.productName,
-            productName: service.productName || service.serviceName,
-            estimatedTime: service.estimated_time || "",
-        }));
+        const formatService = (service) => {
+            const price = Number(service.price) || 0;
+            const origPrice = service.originalPrice && Number(service.originalPrice) > price
+                ? Number(service.originalPrice)
+                : Math.round(price * 1.25);
+            const discount = origPrice > price ? Math.round(((origPrice - price) / origPrice) * 100) : 0;
+
+            return {
+                ...service,
+                name: service.serviceName || service.productName || "Electrical Item",
+                productName: service.productName || service.serviceName || "Electrical Item",
+                estimatedTime: service.estimated_time || "",
+                brand: service.brand || "VOLTLINE",
+                price,
+                originalPrice: origPrice,
+                effectiveOriginalPrice: origPrice,
+                discountPercentage: discount,
+                rating: typeof service.rating === "number" ? service.rating : 4.8,
+                reviewsCount: typeof service.reviewsCount === "number" ? service.reviewsCount : 48,
+                badge: service.badge || (service.type === "service" ? "SERVICE" : "VERIFIED"),
+                inStock: service.inStock !== false && (service.stock === undefined || service.stock > 0),
+                image: service.image || "",
+                images: Array.isArray(service.images) && service.images.length > 0 ? service.images : (service.image ? [service.image] : []),
+                features: Array.isArray(service.features) ? service.features : [],
+                specifications: Array.isArray(service.specifications) ? service.specifications : [],
+            };
+        };
+
+        const data = services.map(formatService);
 
         const totalPages = Math.ceil(total / limitNum) || 1;
 
@@ -362,9 +416,28 @@ exports.getServiceById = async (req, res) => {
             });
         }
 
+        const price = Number(service.price) || 0;
+        const origPrice = service.originalPrice && Number(service.originalPrice) > price
+            ? Number(service.originalPrice)
+            : Math.round(price * 1.25);
+        const discount = origPrice > price ? Math.round(((origPrice - price) / origPrice) * 100) : 0;
+
         service.name = service.serviceName;
         service.productName = service.serviceName;
         service.estimatedTime = service.estimated_time || "";
+        service.brand = service.brand || "VOLTLINE";
+        service.price = price;
+        service.originalPrice = origPrice;
+        service.effectiveOriginalPrice = origPrice;
+        service.discountPercentage = discount;
+        service.rating = typeof service.rating === "number" ? service.rating : 4.8;
+        service.reviewsCount = typeof service.reviewsCount === "number" ? service.reviewsCount : 48;
+        service.badge = service.badge || (service.type === "service" ? "SERVICE" : "VERIFIED");
+        service.inStock = service.inStock !== false && (service.stock === undefined || service.stock > 0);
+        service.image = service.image || "";
+        service.images = Array.isArray(service.images) && service.images.length > 0 ? service.images : (service.image ? [service.image] : []);
+        service.features = Array.isArray(service.features) ? service.features : [];
+        service.specifications = Array.isArray(service.specifications) ? service.specifications : [];
 
         return res.status(200).json({
             success: true,
@@ -411,6 +484,14 @@ exports.updateService = async (req, res) => {
         if (estimatedTime !== undefined) updateData.estimated_time = estimatedTime;
         if (warranty !== undefined) updateData.warranty = warranty;
         if (image !== undefined) updateData.image = image;
+        if (req.body.images !== undefined) updateData.images = Array.isArray(req.body.images) ? req.body.images : [req.body.images];
+        if (req.body.originalPrice !== undefined) updateData.originalPrice = Number(req.body.originalPrice);
+        if (req.body.rating !== undefined) updateData.rating = Number(req.body.rating);
+        if (req.body.reviewsCount !== undefined) updateData.reviewsCount = Number(req.body.reviewsCount);
+        if (req.body.badge !== undefined) updateData.badge = String(req.body.badge).trim();
+        if (req.body.inStock !== undefined) updateData.inStock = Boolean(req.body.inStock);
+        if (req.body.features !== undefined) updateData.features = Array.isArray(req.body.features) ? req.body.features : [req.body.features];
+        if (req.body.specifications !== undefined) updateData.specifications = req.body.specifications;
         if (type !== undefined) updateData.type = type.toLowerCase();
         if (status !== undefined) updateData.status = status;
 

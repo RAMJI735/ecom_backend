@@ -1,5 +1,13 @@
 const mongoose = require("mongoose");
 
+const specificationSchema = new mongoose.Schema(
+    {
+        label: { type: String, trim: true },
+        value: { type: String, trim: true },
+    },
+    { _id: false }
+);
+
 const serviceSchema = new mongoose.Schema(
     {
         serviceName: {
@@ -17,7 +25,7 @@ const serviceSchema = new mongoose.Schema(
         brand: {
             type: String,
             trim: true,
-            default: "",
+            default: "VOLTLINE",
         },
         model: {
             type: String,
@@ -34,6 +42,27 @@ const serviceSchema = new mongoose.Schema(
             required: [true, "Service price is required"],
             min: [0, "Price cannot be negative"],
         },
+        originalPrice: {
+            type: Number,
+            default: null,
+            min: [0, "Original price cannot be negative"],
+        },
+        rating: {
+            type: Number,
+            default: 4.8,
+            min: 1,
+            max: 5,
+        },
+        reviewsCount: {
+            type: Number,
+            default: 48,
+            min: 0,
+        },
+        badge: {
+            type: String,
+            trim: true,
+            default: "VERIFIED",
+        },
         estimated_time: {
             type: String,
             trim: true,
@@ -46,26 +75,39 @@ const serviceSchema = new mongoose.Schema(
         },
         stock: {
             type: Number,
-            default: 0,
+            default: 10,
             min: [0, "Stock cannot be negative"],
+        },
+        inStock: {
+            type: Boolean,
+            default: true,
         },
         warranty: {
             type: String,
             trim: true,
-            default: "",
+            default: "1 Year Manufacturer",
         },
         image: {
             type: String,
             trim: true,
             default: "",
         },
+        images: {
+            type: [String],
+            default: [],
+        },
+        features: {
+            type: [String],
+            default: [],
+        },
+        specifications: [specificationSchema],
         type: {
             type: String,
             enum: {
                 values: ["service", "product"],
                 message: "{VALUE} is not a valid type. Allowed values are 'service' or 'product'.",
             },
-            default: "service",
+            default: "product",
             index: true,
         },
         status: {
@@ -79,6 +121,8 @@ const serviceSchema = new mongoose.Schema(
     },
     {
         timestamps: true,
+        toJSON: { virtuals: true },
+        toObject: { virtuals: true },
     }
 );
 
@@ -89,6 +133,23 @@ serviceSchema.virtual("name").get(function () {
 
 serviceSchema.virtual("productName").get(function () {
     return this.serviceName;
+});
+
+// Dynamic virtual for effective original price if not explicitly stored
+serviceSchema.virtual("effectiveOriginalPrice").get(function () {
+    if (this.originalPrice && this.originalPrice > this.price) {
+        return this.originalPrice;
+    }
+    return Math.round(this.price * 1.25);
+});
+
+// Dynamic virtual for discount percentage
+serviceSchema.virtual("discountPercentage").get(function () {
+    const orig = this.effectiveOriginalPrice;
+    if (orig && orig > this.price) {
+        return Math.round(((orig - this.price) / orig) * 100);
+    }
+    return 0;
 });
 
 // Performance indexes

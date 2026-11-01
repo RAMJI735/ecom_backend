@@ -3,6 +3,8 @@ const jwt = require("jsonwebtoken");
 const Order = require("../model/order/OrderModal");
 const Cart = require("../model/cart/cartModal");
 const Service = require("../model/Service/ServiceModal");
+const Settings = require("../model/Settings/SettingsModal");
+const Coupon = require("../model/Coupon/CouponModal");
 
 const resolveUser = (req) => {
     let userId = req.user?.id || req.user?._id || req.params?.userId || req.query?.userId || req.body?.userId || null;
@@ -133,12 +135,39 @@ exports.createOrder = async (req, res) => {
             });
         }
 
-        // Calculate summary
+        // Fetch dynamic commerce settings
+        const storeSettings = await Settings.findOne() || {};
+        const freeDeliveryThreshold = storeSettings.commerce?.freeDeliveryThreshold ?? 2000;
+        const standardDeliveryFee = storeSettings.commerce?.standardDeliveryFee ?? 150;
+        const taxRate = storeSettings.commerce?.taxRate ?? 18;
+
+        // Calculate summary dynamically
         const subtotal = orderItems.reduce((acc, curr) => acc + curr.itemTotal, 0);
-        const discount = couponCode.toUpperCase() === "VOLT10" ? Math.round(subtotal * 0.1) : 0;
-        const tax = Math.round((subtotal - discount) * 0.18); // 18% GST
-        const shippingFee = subtotal > 2000 ? 0 : 150;
-        const grandTotal = subtotal - discount + tax + shippingFee;
+        let discount = 0;
+        if (couponCode) {
+            const normalizedCode = couponCode.toUpperCase().trim();
+            const foundCoupon = await Coupon.findOne({ code: normalizedCode, isActive: true });
+            if (foundCoupon) {
+                const notExpired = !foundCoupon.expiryDate || new Date(foundCoupon.expiryDate) >= new Date();
+                const meetsMinOrder = subtotal >= (foundCoupon.minOrderValue || 0);
+                if (notExpired && meetsMinOrder) {
+                    if (foundCoupon.discountType === "percentage") {
+                        discount = Math.round(((subtotal * foundCoupon.discountValue) / 100) * 100) / 100;
+                        if (foundCoupon.maxDiscount && discount > foundCoupon.maxDiscount) {
+                            discount = foundCoupon.maxDiscount;
+                        }
+                    } else {
+                        discount = Math.min(subtotal, foundCoupon.discountValue);
+                    }
+                }
+            } else if (normalizedCode === "VOLT10") {
+                discount = Math.round(subtotal * 0.1);
+            }
+        }
+        const taxable = Math.max(0, subtotal - discount);
+        const tax = Math.round((taxable * (taxRate / 100)) * 100) / 100;
+        const shippingFee = subtotal >= freeDeliveryThreshold ? 0 : standardDeliveryFee;
+        const grandTotal = Math.round((taxable + tax + shippingFee) * 100) / 100;
 
         let uniqueOrderNumber = generateOrderNumber();
         while (await Order.findOne({ orderNumber: uniqueOrderNumber })) {

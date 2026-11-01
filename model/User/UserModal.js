@@ -43,6 +43,16 @@ const userSchema = new mongoose.Schema(
             trim: true,
             default: "",
         },
+        companyName: {
+            type: String,
+            trim: true,
+            default: "",
+        },
+        gstin: {
+            type: String,
+            trim: true,
+            default: "",
+        },
         role: {
             type: String,
             enum: {
