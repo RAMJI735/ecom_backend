@@ -7,16 +7,17 @@ const {
     updateHeroBanner,
     deleteHeroBanner,
 } = require("../controllers/settingsController");
+const { handleImageUpload } = require("../utils/uploadMiddleware");
 
 router.route("/")
     .get(getSettings)
     .put(updateSettings);
 
 router.route("/banners")
-    .post(addHeroBanner);
+    .post(handleImageUpload("image"), addHeroBanner);
 
 router.route("/banners/:id")
-    .put(updateHeroBanner)
+    .put(handleImageUpload("image"), updateHeroBanner)
     .delete(deleteHeroBanner);
 
 module.exports = router;

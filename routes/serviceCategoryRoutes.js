@@ -8,17 +8,18 @@ const {
     deleteCategory,
 } = require("../controllers/serviceCategoryController");
 
+const { handleImageUpload } = require("../utils/uploadMiddleware");
 const publicCache = require("../utils/cacheMiddleware");
 
 // Service Category CRUD routes
 router.route("/")
-    .post(createCategory)
+    .post(handleImageUpload("image"), createCategory)
     .get(publicCache, getAllCategories);
 
 router.route("/:id")
     .get(publicCache, getCategoryById)
-    .put(updateCategory)
-    .patch(updateCategory)
+    .put(handleImageUpload("image"), updateCategory)
+    .patch(handleImageUpload("image"), updateCategory)
     .delete(deleteCategory);
 
 const mongoose = require("mongoose");

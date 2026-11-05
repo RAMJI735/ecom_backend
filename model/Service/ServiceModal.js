@@ -92,6 +92,16 @@ const serviceSchema = new mongoose.Schema(
             trim: true,
             default: "",
         },
+        public_id: {
+            type: String,
+            trim: true,
+            default: "",
+        },
+        imagePublicId: {
+            type: String,
+            trim: true,
+            default: "",
+        },
         images: {
             type: [String],
             default: [],

@@ -1,4 +1,5 @@
 const Settings = require("../model/Settings/SettingsModal");
+const { CloudinaryDelete, extractPublicId } = require("../utils/cloudinary");
 
 const DEFAULT_BANNERS = [
     {
@@ -222,6 +223,8 @@ exports.addHeroBanner = async (req, res) => {
             buttonText,
             targetCategory,
             image,
+            public_id,
+            imagePublicId,
             discountText,
             active,
             order,
@@ -234,6 +237,8 @@ exports.addHeroBanner = async (req, res) => {
             });
         }
 
+        const resolvedPublicId = public_id || imagePublicId || (image ? extractPublicId(image) : "");
+
         settings.heroBanners.push({
             title: title.trim(),
             subtitle: subtitle ? subtitle.trim() : "",
@@ -241,6 +246,8 @@ exports.addHeroBanner = async (req, res) => {
             buttonText: buttonText ? buttonText.trim() : "SHOP NOW  →",
             targetCategory: targetCategory ? targetCategory.trim() : "all",
             image: image ? image.trim() : "",
+            public_id: resolvedPublicId,
+            imagePublicId: resolvedPublicId,
             discountText: discountText ? discountText.trim() : "",
             active: active !== undefined ? Boolean(active) : true,
             order: order !== undefined ? Number(order) : settings.heroBanners.length + 1,
@@ -293,7 +300,18 @@ exports.updateHeroBanner = async (req, res) => {
         if (tag !== undefined) banner.tag = tag.trim();
         if (buttonText !== undefined) banner.buttonText = buttonText.trim();
         if (targetCategory !== undefined) banner.targetCategory = targetCategory.trim();
-        if (image !== undefined) banner.image = image.trim();
+        if (image !== undefined) {
+            banner.image = image.trim();
+            const newPid = req.body.public_id || req.body.imagePublicId || extractPublicId(image);
+            if (newPid) {
+                banner.public_id = newPid;
+                banner.imagePublicId = newPid;
+            }
+        }
+        if (req.body.public_id !== undefined || req.body.imagePublicId !== undefined) {
+            banner.public_id = req.body.public_id || req.body.imagePublicId;
+            banner.imagePublicId = req.body.public_id || req.body.imagePublicId;
+        }
         if (discountText !== undefined) banner.discountText = discountText.trim();
         if (active !== undefined) banner.active = Boolean(active);
         if (order !== undefined) banner.order = Number(order);
@@ -328,12 +346,18 @@ exports.deleteHeroBanner = async (req, res) => {
             });
         }
 
+        // Delete associated image from Cloudinary
+        const publicIdToDelete = banner.public_id || banner.imagePublicId || extractPublicId(banner.image);
+        if (publicIdToDelete) {
+            await CloudinaryDelete(publicIdToDelete);
+        }
+
         banner.deleteOne();
         await settings.save();
 
         return res.status(200).json({
             success: true,
-            message: "Banner deleted successfully",
+            message: "Banner and associated image deleted successfully",
             data: settings.heroBanners,
         });
     } catch (error) {

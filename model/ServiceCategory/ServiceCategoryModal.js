@@ -20,6 +20,16 @@ const serviceCategorySchema = new mongoose.Schema(
             trim: true,
             default: "",
         },
+        public_id: {
+            type: String,
+            trim: true,
+            default: "",
+        },
+        imagePublicId: {
+            type: String,
+            trim: true,
+            default: "",
+        },
         icon: {
             type: String,
             trim: true,

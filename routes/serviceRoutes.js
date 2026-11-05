@@ -8,17 +8,18 @@ const {
     deleteService,
 } = require("../controllers/serviceController");
 
+const { handleImageUpload } = require("../utils/uploadMiddleware");
 const publicCache = require("../utils/cacheMiddleware");
 
 // Service Details CRUD routes
 router.route("/")
-    .post(createService)
+    .post(handleImageUpload("image"), createService)
     .get(publicCache, getAllServices);
 
 router.route("/:id")
     .get(publicCache, getServiceById)
-    .put(updateService)
-    .patch(updateService)
+    .put(handleImageUpload("image"), updateService)
+    .patch(handleImageUpload("image"), updateService)
     .delete(deleteService);
 
 module.exports = router;

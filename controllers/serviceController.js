@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Service = require("../model/Service/ServiceModal");
 const ServiceCategory = require("../model/ServiceCategory/ServiceCategoryModal");
+const { CloudinaryDelete, extractPublicId } = require("../utils/cloudinary");
 
 // Create a new Service
 exports.createService = async (req, res) => {
@@ -55,6 +56,8 @@ exports.createService = async (req, res) => {
             });
         }
 
+        const resolvedPublicId = req.body.public_id || req.body.imagePublicId || (image ? extractPublicId(image) : "");
+
         const service = new Service({
             serviceName: resolvedServiceName.trim(),
             category,
@@ -69,6 +72,8 @@ exports.createService = async (req, res) => {
             estimated_time: resolvedEstimatedTime || "",
             warranty: warranty || "1 Year Manufacturer",
             image: image || "",
+            public_id: resolvedPublicId,
+            imagePublicId: resolvedPublicId,
             images: Array.isArray(req.body.images) ? req.body.images : (image ? [image] : []),
             features: Array.isArray(req.body.features) ? req.body.features : [],
             specifications: Array.isArray(req.body.specifications) ? req.body.specifications : [],
@@ -257,6 +262,8 @@ exports.getAllServices = async (req, res) => {
                 page === undefined &&
                 limit === undefined
             );
+
+        query.stock > 0;
 
         if (isAllRequested) {
             const services = await Service.find(query)
@@ -483,7 +490,18 @@ exports.updateService = async (req, res) => {
         if (estimated_time !== undefined) updateData.estimated_time = estimated_time;
         if (estimatedTime !== undefined) updateData.estimated_time = estimatedTime;
         if (warranty !== undefined) updateData.warranty = warranty;
-        if (image !== undefined) updateData.image = image;
+        if (image !== undefined) {
+            updateData.image = image;
+            const newPid = req.body.public_id || req.body.imagePublicId || extractPublicId(image);
+            if (newPid) {
+                updateData.public_id = newPid;
+                updateData.imagePublicId = newPid;
+            }
+        }
+        if (req.body.public_id !== undefined || req.body.imagePublicId !== undefined) {
+            updateData.public_id = req.body.public_id || req.body.imagePublicId;
+            updateData.imagePublicId = req.body.public_id || req.body.imagePublicId;
+        }
         if (req.body.images !== undefined) updateData.images = Array.isArray(req.body.images) ? req.body.images : [req.body.images];
         if (req.body.originalPrice !== undefined) updateData.originalPrice = Number(req.body.originalPrice);
         if (req.body.rating !== undefined) updateData.rating = Number(req.body.rating);
@@ -537,18 +555,36 @@ exports.updateService = async (req, res) => {
 exports.deleteService = async (req, res) => {
     try {
         const { id } = req.params;
-        const deletedService = await Service.findByIdAndDelete(id);
+        const service = await Service.findById(id);
 
-        if (!deletedService) {
+        if (!service) {
             return res.status(404).json({
                 success: false,
                 message: "Service not found",
             });
         }
 
+        // Delete associated primary image from Cloudinary
+        const publicIdToDelete = service.public_id || service.imagePublicId || extractPublicId(service.image);
+        if (publicIdToDelete) {
+            await CloudinaryDelete(publicIdToDelete);
+        }
+
+        // Delete any additional images in images array from Cloudinary
+        if (Array.isArray(service.images) && service.images.length > 0) {
+            for (const imgUrl of service.images) {
+                const imgPid = extractPublicId(imgUrl);
+                if (imgPid && imgPid !== publicIdToDelete) {
+                    await CloudinaryDelete(imgPid);
+                }
+            }
+        }
+
+        const deletedService = await Service.findByIdAndDelete(id);
+
         return res.status(200).json({
             success: true,
-            message: "Service deleted successfully",
+            message: "Service and associated images deleted successfully",
             data: deletedService,
         });
     } catch (error) {

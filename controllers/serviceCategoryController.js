@@ -1,5 +1,6 @@
 const ServiceCategory = require("../model/ServiceCategory/ServiceCategoryModal");
 const Service = require("../model/Service/ServiceModal");
+const { CloudinaryDelete, extractPublicId } = require("../utils/cloudinary");
 
 // Create a new Service Category
 exports.createCategory = async (req, res) => {
@@ -25,10 +26,14 @@ exports.createCategory = async (req, res) => {
             });
         }
 
+        const resolvedPublicId = req.body.public_id || req.body.imagePublicId || (image ? extractPublicId(image) : "");
+
         const category = new ServiceCategory({
             categoryName: resolvedName.trim(),
             description,
             image,
+            public_id: resolvedPublicId,
+            imagePublicId: resolvedPublicId,
             icon,
             status,
         });
@@ -228,14 +233,21 @@ exports.deleteCategory = async (req, res) => {
             });
         }
 
-        const deletedCategory = await ServiceCategory.findByIdAndDelete(id);
+        const categoryToDelete = await ServiceCategory.findById(id);
 
-        if (!deletedCategory) {
+        if (!categoryToDelete) {
             return res.status(404).json({
                 success: false,
                 message: "Service category not found",
             });
         }
+
+        const publicIdToDelete = categoryToDelete.public_id || categoryToDelete.imagePublicId || extractPublicId(categoryToDelete.image);
+        if (publicIdToDelete) {
+            await CloudinaryDelete(publicIdToDelete);
+        }
+
+        const deletedCategory = await ServiceCategory.findByIdAndDelete(id);
 
         return res.status(200).json({
             success: true,
