@@ -7,16 +7,19 @@ const {
     deleteCoupon,
     validateCoupon,
 } = require("../controllers/couponController");
+const { protect, adminOnly, optionalAuth } = require("../middleware/authMiddleware");
 
-router.route("/")
-    .get(getCoupons)
-    .post(createCoupon);
+// Validate coupon during checkout
+router.post("/validate", optionalAuth, validateCoupon);
 
-router.post("/validate", validateCoupon);
+// View coupons (public / customers)
+router.get("/", getCoupons);
+
+// Admin-only coupon lifecycle CRUD
+router.post("/", protect, adminOnly, createCoupon);
 
 router.route("/:id")
-    .put(updateCoupon)
-    .delete(deleteCoupon);
+    .put(protect, adminOnly, updateCoupon)
+    .delete(protect, adminOnly, deleteCoupon);
 
 module.exports = router;
-

@@ -11,6 +11,8 @@ const taskRoutes = require("./routes/taskRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
 const couponRoutes = require("./routes/couponRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
+const authRoutes = require("./routes/authRoutes");
+const { login, register, logout } = require("./controllers/authController");
 
 const compression = require("compression");
 const mongoose = require("mongoose");
@@ -86,6 +88,13 @@ app.use("/api/service-requests", taskRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/coupons", couponRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/auth", authRoutes);
+
+// Direct compatibility endpoints for legacy frontend routes
+app.post("/login/user", login);
+app.post("/signup/user", register);
+app.post("/logout/user", logout);
 
 // Centralized Error Handling Middleware
 app.use((err, req, res, next) => {

@@ -78,6 +78,7 @@ exports.createCoupon = async (req, res) => {
             isActive,
             expiryDate,
             usageLimit,
+            limit,
         } = req.body;
 
         if (!code || !discountValue) {
@@ -95,6 +96,8 @@ exports.createCoupon = async (req, res) => {
             });
         }
 
+        const resolvedLimit = limit !== undefined ? Number(limit) : (usageLimit !== undefined ? Number(usageLimit) : 1000);
+
         const coupon = new Coupon({
             code: code.toUpperCase().trim(),
             description: description ? description.trim() : "Promotional Discount",
@@ -103,8 +106,10 @@ exports.createCoupon = async (req, res) => {
             minOrderValue: minOrderValue !== undefined ? Number(minOrderValue) : 0,
             maxDiscount: maxDiscount ? Number(maxDiscount) : null,
             isActive: isActive !== undefined ? Boolean(isActive) : true,
-            expiryDate: expiryDate ? new Date(expiryDate) : undefined,
-            usageLimit: usageLimit !== undefined ? Number(usageLimit) : 1000,
+            expiryDate: expiryDate ? new Date(expiryDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            usageLimit: resolvedLimit,
+            limit: resolvedLimit,
+            usedCount: 0,
         });
 
         await coupon.save();
@@ -144,6 +149,7 @@ exports.updateCoupon = async (req, res) => {
             isActive,
             expiryDate,
             usageLimit,
+            limit,
         } = req.body;
 
         if (code !== undefined) coupon.code = code.toUpperCase().trim();
@@ -154,7 +160,11 @@ exports.updateCoupon = async (req, res) => {
         if (maxDiscount !== undefined) coupon.maxDiscount = maxDiscount ? Number(maxDiscount) : null;
         if (isActive !== undefined) coupon.isActive = Boolean(isActive);
         if (expiryDate !== undefined) coupon.expiryDate = new Date(expiryDate);
-        if (usageLimit !== undefined) coupon.usageLimit = Number(usageLimit);
+        if (limit !== undefined || usageLimit !== undefined) {
+            const newLim = limit !== undefined ? Number(limit) : Number(usageLimit);
+            coupon.limit = newLim;
+            coupon.usageLimit = newLim;
+        }
 
         await coupon.save();
 
@@ -222,7 +232,15 @@ exports.validateCoupon = async (req, res) => {
         if (coupon.expiryDate && new Date(coupon.expiryDate) < new Date()) {
             return res.status(400).json({
                 success: false,
-                message: "This coupon has expired",
+                message: `This coupon has expired on ${new Date(coupon.expiryDate).toLocaleDateString()}`,
+            });
+        }
+
+        const effectiveLimit = coupon.limit !== undefined ? coupon.limit : coupon.usageLimit;
+        if (effectiveLimit !== null && effectiveLimit !== undefined && (coupon.usedCount || 0) >= effectiveLimit) {
+            return res.status(400).json({
+                success: false,
+                message: `Coupon usage limit of ${effectiveLimit} has been reached`,
             });
         }
 

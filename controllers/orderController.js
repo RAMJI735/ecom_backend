@@ -56,13 +56,7 @@ const generateOrderNumber = () => {
  */
 exports.createOrder = async (req, res) => {
     try {
-        const userId = resolveUser(req);
-        if (!userId) {
-            return res.status(401).json({
-                success: false,
-                message: "Authentication required. Please log in to place an order.",
-            });
-        }
+        let userId = resolveUser(req);
         const {
             items: rawItems,
             shippingAddress,
@@ -72,7 +66,10 @@ exports.createOrder = async (req, res) => {
             deliveryNotes = "",
             couponCode = "",
             clearCartOnSuccess = true,
+            guestId = null,
         } = req.body;
+
+        const effectiveGuestId = guestId || (userId ? null : `GUEST-${Date.now()}`);
 
         if (!shippingAddress || !shippingAddress.fullName || !shippingAddress.phone || !shippingAddress.street || !shippingAddress.city) {
             return res.status(400).json({
@@ -83,29 +80,47 @@ exports.createOrder = async (req, res) => {
 
         let orderItems = [];
 
-        // If items are passed explicitly
+        // If items are passed explicitly (Always fetch genuine prices from database - never trust client amounts!)
         if (Array.isArray(rawItems) && rawItems.length > 0) {
             for (const itm of rawItems) {
                 const itemId = itm.item || itm.itemId || itm.id || itm._id;
+                let dbItem = null;
+
+                if (itemId && mongoose.Types.ObjectId.isValid(itemId)) {
+                    dbItem = await Service.findById(itemId).lean();
+                } else if (itemId) {
+                    dbItem = await Service.findOne({
+                        $or: [
+                            { sku: String(itemId).trim() },
+                            { serviceName: String(itemId).trim() },
+                        ],
+                    }).lean();
+                }
+
                 const qty = Math.max(1, parseInt(itm.quantity, 10) || 1);
-                const price = Number(itm.price) || 0;
+                // Genuine price from DB. Fallback to passed price only if item doc not in DB
+                const genuinePrice = dbItem && dbItem.price !== undefined
+                    ? Number(dbItem.price)
+                    : (Number(itm.price) || 0);
+
+                const itemTotal = Math.round(genuinePrice * qty * 100) / 100;
+
                 orderItems.push({
-                    item: itemId,
-                    name: itm.name || itm.serviceName || "Electrical Service / Item",
-                    type: itm.type || "service",
-                    price: price,
+                    item: dbItem ? dbItem._id : (itemId && mongoose.Types.ObjectId.isValid(itemId) ? itemId : new mongoose.Types.ObjectId()),
+                    name: dbItem ? (dbItem.serviceName || dbItem.name) : (itm.name || itm.serviceName || "Electrical Service / Item"),
+                    type: dbItem?.type || itm.type || "service",
+                    price: genuinePrice,
                     quantity: qty,
-                    image: itm.image || "",
-                    category: itm.category || "",
-                    brand: itm.brand || "",
-                    itemTotal: price * qty,
+                    image: dbItem?.image || itm.image || "",
+                    category: dbItem?.category ? String(dbItem.category) : (itm.category || ""),
+                    brand: dbItem?.brand || itm.brand || "",
+                    itemTotal: itemTotal,
                     notes: itm.notes || "",
                 });
             }
-        } else {
-            // Pull from active cart
+        } else if (userId) {
+            // Pull from active cart and verify genuine item prices
             const filter = { status: { $in: ["active", "Pending"] }, user: userId };
-
             const cart = await Cart.findOne(filter);
             if (!cart || !Array.isArray(cart.items) || cart.items.length === 0) {
                 return res.status(400).json({
@@ -114,59 +129,135 @@ exports.createOrder = async (req, res) => {
                 });
             }
 
-            orderItems = cart.items.map((i) => ({
-                item: i.item,
-                name: i.name,
-                type: i.type || "service",
-                price: i.price,
-                quantity: i.quantity,
-                image: i.image,
-                category: i.category,
-                brand: i.brand || "",
-                itemTotal: i.price * i.quantity,
-                notes: i.notes || "",
-            }));
+            for (const i of cart.items) {
+                let genuinePrice = Number(i.price) || 0;
+                let dbItem = null;
+                if (i.item && mongoose.Types.ObjectId.isValid(i.item)) {
+                    dbItem = await Service.findById(i.item).lean();
+                    if (dbItem && dbItem.price !== undefined) {
+                        genuinePrice = Number(dbItem.price);
+                    }
+                }
+                const qty = Math.max(1, parseInt(i.quantity, 10) || 1);
+                const itemTotal = Math.round(genuinePrice * qty * 100) / 100;
+
+                orderItems.push({
+                    item: i.item,
+                    name: dbItem ? (dbItem.serviceName || dbItem.name) : i.name,
+                    type: dbItem?.type || i.type || "service",
+                    price: genuinePrice,
+                    quantity: qty,
+                    image: dbItem?.image || i.image || "",
+                    category: dbItem?.category ? String(dbItem.category) : (i.category || ""),
+                    brand: dbItem?.brand || i.brand || "",
+                    itemTotal: itemTotal,
+                    notes: i.notes || "",
+                });
+            }
         }
 
         if (orderItems.length === 0) {
             return res.status(400).json({
                 success: false,
-                message: "Order must contain at least one item",
+                message: "Order must contain at least one valid item",
             });
         }
 
-        // Fetch dynamic commerce settings
-        const storeSettings = await Settings.findOne() || {};
-        const freeDeliveryThreshold = storeSettings.commerce?.freeDeliveryThreshold ?? 2000;
-        const standardDeliveryFee = storeSettings.commerce?.standardDeliveryFee ?? 150;
-        const taxRate = storeSettings.commerce?.taxRate ?? 18;
+        // Fetch dynamic commerce settings from DB
+        const storeSettings = (await Settings.findOne()) || {};
 
-        // Calculate summary dynamically
-        const subtotal = orderItems.reduce((acc, curr) => acc + curr.itemTotal, 0);
+        // 1. Calculate subtotal strictly on backend
+        const subtotal = Math.round(orderItems.reduce((acc, curr) => acc + curr.itemTotal, 0) * 100) / 100;
+
+        // 2. Delivery Cost Logic:
+        // When admin enables delivery cost (deliveryCharges: true):
+        //   - If subtotal < minPrice (e.g. < 100) -> add delivery_cost!
+        //   - If subtotal >= minPrice -> delivery is FREE (0)!
+        // When admin disables delivery cost (deliveryCharges: false) -> delivery is 0!
+        const deliveryChargesEnabled = storeSettings.deliveryCharges !== undefined
+            ? Boolean(storeSettings.deliveryCharges)
+            : Boolean(storeSettings.commerce?.deliveryCharges);
+
+        const minPrice = storeSettings.minPrice !== undefined
+            ? Number(storeSettings.minPrice)
+            : (storeSettings.commerce?.minPrice !== undefined
+                ? Number(storeSettings.commerce.minPrice)
+                : Number(storeSettings.commerce?.freeDeliveryThreshold ?? 100));
+
+        const deliveryCostAmount = storeSettings.delivery_cost !== undefined
+            ? Number(storeSettings.delivery_cost)
+            : (storeSettings.commerce?.delivery_cost !== undefined
+                ? Number(storeSettings.commerce.delivery_cost)
+                : Number(storeSettings.commerce?.standardDeliveryFee ?? 50));
+
+        let shippingFee = 0;
+        if (deliveryChargesEnabled) {
+            if (subtotal < minPrice) {
+                shippingFee = deliveryCostAmount;
+            } else {
+                shippingFee = 0; // Free delivery threshold met
+            }
+        } else {
+            shippingFee = 0; // Delivery charges disabled by admin
+        }
+
+        // 3. Coupon Validation & Discount Calculation on Backend
         let discount = 0;
+        let appliedCouponDoc = null;
+
         if (couponCode) {
             const normalizedCode = couponCode.toUpperCase().trim();
             const foundCoupon = await Coupon.findOne({ code: normalizedCode, isActive: true });
-            if (foundCoupon) {
-                const notExpired = !foundCoupon.expiryDate || new Date(foundCoupon.expiryDate) >= new Date();
-                const meetsMinOrder = subtotal >= (foundCoupon.minOrderValue || 0);
-                if (notExpired && meetsMinOrder) {
-                    if (foundCoupon.discountType === "percentage") {
-                        discount = Math.round(((subtotal * foundCoupon.discountValue) / 100) * 100) / 100;
-                        if (foundCoupon.maxDiscount && discount > foundCoupon.maxDiscount) {
-                            discount = foundCoupon.maxDiscount;
-                        }
-                    } else {
-                        discount = Math.min(subtotal, foundCoupon.discountValue);
-                    }
-                }
-            } else if (normalizedCode === "VOLT10") {
-                discount = Math.round(subtotal * 0.1);
+
+            if (!foundCoupon) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Coupon code '${normalizedCode}' is invalid or has been deactivated.`,
+                });
             }
+
+            // Check expiryDate
+            if (foundCoupon.expiryDate && new Date(foundCoupon.expiryDate) < new Date()) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Coupon code '${normalizedCode}' expired on ${new Date(foundCoupon.expiryDate).toLocaleDateString()}.`,
+                });
+            }
+
+            // Check coupon limit / usageLimit
+            const couponLimit = foundCoupon.limit !== undefined ? foundCoupon.limit : foundCoupon.usageLimit;
+            if (couponLimit !== null && couponLimit !== undefined && (foundCoupon.usedCount || 0) >= couponLimit) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Coupon code '${normalizedCode}' usage limit (${couponLimit}) has been reached.`,
+                });
+            }
+
+            // Check minOrderValue
+            if (subtotal < (foundCoupon.minOrderValue || 0)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Minimum order value of ₹${foundCoupon.minOrderValue} required for coupon '${normalizedCode}'. Current subtotal is ₹${subtotal}.`,
+                });
+            }
+
+            // Calculate discount strictly on backend
+            if (foundCoupon.discountType === "percentage") {
+                discount = Math.round(((subtotal * foundCoupon.discountValue) / 100) * 100) / 100;
+                if (foundCoupon.maxDiscount && discount > foundCoupon.maxDiscount) {
+                    discount = foundCoupon.maxDiscount;
+                }
+            } else {
+                discount = Math.min(subtotal, foundCoupon.discountValue);
+            }
+
+            appliedCouponDoc = foundCoupon;
         }
+
+        // 4. Tax & Grand Total Calculation on Backend
+        const taxRate = storeSettings.commerce?.taxRate ?? 18;
         const taxable = Math.max(0, subtotal - discount);
         const tax = Math.round((taxable * (taxRate / 100)) * 100) / 100;
-        const shippingFee = subtotal >= freeDeliveryThreshold ? 0 : standardDeliveryFee;
         const grandTotal = Math.round((taxable + tax + shippingFee) * 100) / 100;
 
         let uniqueOrderNumber = generateOrderNumber();
@@ -177,6 +268,7 @@ exports.createOrder = async (req, res) => {
         const newOrder = new Order({
             orderNumber: uniqueOrderNumber,
             user: userId && mongoose.Types.ObjectId.isValid(userId) ? userId : null,
+            guestId: effectiveGuestId,
             items: orderItems,
             shippingAddress: {
                 fullName: shippingAddress.fullName.trim(),
@@ -208,8 +300,9 @@ exports.createOrder = async (req, res) => {
             summary: {
                 subtotal,
                 discount,
-                couponCode,
+                couponCode: appliedCouponDoc ? appliedCouponDoc.code : "",
                 shippingFee,
+                deliveryCost: shippingFee,
                 tax,
                 grandTotal,
             },
@@ -224,6 +317,13 @@ exports.createOrder = async (req, res) => {
         });
 
         await newOrder.save();
+
+        // Increment coupon usedCount in DB after order is saved
+        if (appliedCouponDoc) {
+            await Coupon.findByIdAndUpdate(appliedCouponDoc._id, {
+                $inc: { usedCount: 1 },
+            });
+        }
 
         // Clear active cart on user account
         if (clearCartOnSuccess && userId) {

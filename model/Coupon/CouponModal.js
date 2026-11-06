@@ -47,6 +47,10 @@ const couponSchema = new mongoose.Schema(
             type: Number,
             default: 1000,
         },
+        limit: {
+            type: Number,
+            default: 1000,
+        },
         usedCount: {
             type: Number,
             default: 0,
@@ -54,8 +58,20 @@ const couponSchema = new mongoose.Schema(
     },
     {
         timestamps: true,
+        toJSON: { virtuals: true },
+        toObject: { virtuals: true },
     }
 );
+
+couponSchema.pre("validate", function () {
+    if (this.limit !== undefined && this.usageLimit === undefined) {
+        this.usageLimit = this.limit;
+    } else if (this.usageLimit !== undefined && this.limit === undefined) {
+        this.limit = this.usageLimit;
+    } else if (this.limit !== undefined && this.usageLimit !== undefined) {
+        this.usageLimit = this.limit;
+    }
+});
 
 couponSchema.index({ code: 1, isActive: 1 });
 

@@ -4,6 +4,7 @@ const os = require("os");
 const path = require("path");
 const fs = require("fs");
 const { CloudinaryUpload, CloudinaryDelete } = require("../utils/cloudinary");
+const { protect, optionalAuth } = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
@@ -45,6 +46,7 @@ const upload = multer({
 // POST /api/upload - Accepts FormData with 'image' or 'file'
 router.post(
   "/",
+  optionalAuth,
   upload.fields([
     { name: "image", maxCount: 1 },
     { name: "file", maxCount: 1 },
@@ -93,8 +95,8 @@ router.post(
   }
 );
 
-// DELETE /api/upload - Delete image by public_id or url
-router.delete("/", async (req, res) => {
+// DELETE /api/upload - Delete image by public_id or url (requires authentication)
+router.delete("/", protect, async (req, res) => {
   try {
     const target = req.body?.public_id || req.body?.url || req.query?.public_id || req.query?.url;
     if (!target) {

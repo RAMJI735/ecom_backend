@@ -9,17 +9,19 @@ const {
 } = require("../controllers/serviceController");
 
 const { handleImageUpload } = require("../utils/uploadMiddleware");
+const { protect, adminOnly } = require("../middleware/authMiddleware");
 const publicCache = require("../utils/cacheMiddleware");
 
-// Service Details CRUD routes
+// Public browsing & Admin service creation
 router.route("/")
-    .post(handleImageUpload("image"), createService)
-    .get(publicCache, getAllServices);
+    .get(publicCache, getAllServices)
+    .post(protect, adminOnly, handleImageUpload("image"), createService);
 
+// Single service details (public) & Admin updates/deletion
 router.route("/:id")
     .get(publicCache, getServiceById)
-    .put(handleImageUpload("image"), updateService)
-    .patch(handleImageUpload("image"), updateService)
-    .delete(deleteService);
+    .put(protect, adminOnly, handleImageUpload("image"), updateService)
+    .patch(protect, adminOnly, handleImageUpload("image"), updateService)
+    .delete(protect, adminOnly, deleteService);
 
 module.exports = router;

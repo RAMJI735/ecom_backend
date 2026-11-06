@@ -155,14 +155,28 @@ const settingsSchema = new mongoose.Schema(
         heroBanners: [heroBannerSchema],
         assurances: [assuranceSchema],
         commerce: {
+            deliveryCharges: {
+                type: Boolean,
+                default: false,
+            },
+            minPrice: {
+                type: Number,
+                default: 100,
+                min: 0,
+            },
+            delivery_cost: {
+                type: Number,
+                default: 50,
+                min: 0,
+            },
             freeDeliveryThreshold: {
                 type: Number,
-                default: 2000,
+                default: 100,
                 min: 0,
             },
             standardDeliveryFee: {
                 type: Number,
-                default: 150,
+                default: 50,
                 min: 0,
             },
             taxRate: {
@@ -179,6 +193,20 @@ const settingsSchema = new mongoose.Schema(
                 default: "₹",
             },
         },
+        deliveryCharges: {
+            type: Boolean,
+            default: false,
+        },
+        minPrice: {
+            type: Number,
+            default: 100,
+            min: 0,
+        },
+        delivery_cost: {
+            type: Number,
+            default: 50,
+            min: 0,
+        },
         notifications: {
             emailAlerts: {
                 type: Boolean,
@@ -194,6 +222,38 @@ const settingsSchema = new mongoose.Schema(
         timestamps: true,
     }
 );
+
+// Keep deliveryCharges, minPrice, and delivery_cost synced between commerce and top-level
+settingsSchema.pre("save", function () {
+    if (this.deliveryCharges !== undefined) {
+        if (!this.commerce) this.commerce = {};
+        this.commerce.deliveryCharges = this.deliveryCharges;
+    } else if (this.commerce?.deliveryCharges !== undefined) {
+        this.deliveryCharges = this.commerce.deliveryCharges;
+    }
+
+    if (this.minPrice !== undefined) {
+        if (!this.commerce) this.commerce = {};
+        this.commerce.minPrice = this.minPrice;
+        this.commerce.freeDeliveryThreshold = this.minPrice;
+    } else if (this.commerce?.minPrice !== undefined) {
+        this.minPrice = this.commerce.minPrice;
+    } else if (this.commerce?.freeDeliveryThreshold !== undefined) {
+        this.minPrice = this.commerce.freeDeliveryThreshold;
+        this.commerce.minPrice = this.commerce.freeDeliveryThreshold;
+    }
+
+    if (this.delivery_cost !== undefined) {
+        if (!this.commerce) this.commerce = {};
+        this.commerce.delivery_cost = this.delivery_cost;
+        this.commerce.standardDeliveryFee = this.delivery_cost;
+    } else if (this.commerce?.delivery_cost !== undefined) {
+        this.delivery_cost = this.commerce.delivery_cost;
+    } else if (this.commerce?.standardDeliveryFee !== undefined) {
+        this.delivery_cost = this.commerce.standardDeliveryFee;
+        this.commerce.delivery_cost = this.commerce.standardDeliveryFee;
+    }
+});
 
 const Settings = mongoose.model("Settings", settingsSchema);
 

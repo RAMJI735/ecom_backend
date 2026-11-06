@@ -9,21 +9,24 @@ const {
     deleteTechnician,
 } = require("../controllers/technicianController");
 
-const publicCache = require("../utils/cacheMiddleware");
+const { protect, adminOnly } = require("../middleware/authMiddleware");
+
+// Technicians endpoints (requires authentication)
+router.use(protect);
 
 // Available technicians endpoint for quick dispatch dropdowns
-router.get("/available", publicCache, getAvailableTechnicians);
+router.get("/available", getAvailableTechnicians);
 
 // Technician collection CRUD routes
 router.route("/")
-    .get(publicCache, getAllTechnicians)
-    .post(createTechnician);
+    .get(getAllTechnicians)
+    .post(adminOnly, createTechnician);
 
 // Single technician CRUD routes
 router.route("/:id")
-    .get(publicCache, getTechnicianById)
-    .put(updateTechnician)
-    .patch(updateTechnician)
-    .delete(deleteTechnician);
+    .get(getTechnicianById)
+    .put(adminOnly, updateTechnician)
+    .patch(adminOnly, updateTechnician)
+    .delete(adminOnly, deleteTechnician);
 
 module.exports = router;

@@ -8,6 +8,10 @@ const {
     deleteAddress,
     setDefaultAddress,
 } = require("../controllers/addressController");
+const { protect } = require("../middleware/authMiddleware");
+
+// All address operations require authentication
+router.use(protect);
 
 router.route("/")
     .get(getAddresses)

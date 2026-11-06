@@ -81,12 +81,18 @@ const getOrCreateSettings = async () => {
             heroBanners: DEFAULT_BANNERS,
             assurances: DEFAULT_ASSURANCES,
             commerce: {
-                freeDeliveryThreshold: 2000,
-                standardDeliveryFee: 150,
+                deliveryCharges: false,
+                minPrice: 100,
+                delivery_cost: 50,
+                freeDeliveryThreshold: 100,
+                standardDeliveryFee: 50,
                 taxRate: 18,
                 currency: "INR",
                 currencySymbol: "₹",
             },
+            deliveryCharges: false,
+            minPrice: 100,
+            delivery_cost: 50,
             notifications: {
                 emailAlerts: true,
                 smsAlerts: true,
@@ -135,6 +141,9 @@ exports.updateSettings = async (req, res) => {
             notifications,
             heroBanners,
             assurances,
+            deliveryCharges,
+            minPrice,
+            delivery_cost,
         } = req.body;
 
         if (storeName !== undefined) settings.storeName = storeName.trim();
@@ -148,6 +157,24 @@ exports.updateSettings = async (req, res) => {
         if (pincode !== undefined) settings.pincode = pincode.trim();
         if (gstin !== undefined) settings.gstin = gstin.trim();
 
+        if (deliveryCharges !== undefined) {
+            settings.deliveryCharges = Boolean(deliveryCharges);
+            if (!settings.commerce) settings.commerce = {};
+            settings.commerce.deliveryCharges = Boolean(deliveryCharges);
+        }
+        if (minPrice !== undefined) {
+            settings.minPrice = Number(minPrice);
+            if (!settings.commerce) settings.commerce = {};
+            settings.commerce.minPrice = Number(minPrice);
+            settings.commerce.freeDeliveryThreshold = Number(minPrice);
+        }
+        if (delivery_cost !== undefined) {
+            settings.delivery_cost = Number(delivery_cost);
+            if (!settings.commerce) settings.commerce = {};
+            settings.commerce.delivery_cost = Number(delivery_cost);
+            settings.commerce.standardDeliveryFee = Number(delivery_cost);
+        }
+
         if (announcement) {
             settings.announcement = {
                 text: announcement.text !== undefined ? announcement.text : settings.announcement.text,
@@ -157,15 +184,22 @@ exports.updateSettings = async (req, res) => {
         }
 
         if (commerce) {
+            const dc = commerce.deliveryCharges !== undefined
+                ? Boolean(commerce.deliveryCharges)
+                : settings.commerce.deliveryCharges;
+            const mp = commerce.minPrice !== undefined
+                ? Number(commerce.minPrice)
+                : (commerce.freeDeliveryThreshold !== undefined ? Number(commerce.freeDeliveryThreshold) : settings.commerce.minPrice);
+            const dCost = commerce.delivery_cost !== undefined
+                ? Number(commerce.delivery_cost)
+                : (commerce.standardDeliveryFee !== undefined ? Number(commerce.standardDeliveryFee) : settings.commerce.delivery_cost);
+
             settings.commerce = {
-                freeDeliveryThreshold:
-                    commerce.freeDeliveryThreshold !== undefined
-                        ? Number(commerce.freeDeliveryThreshold)
-                        : settings.commerce.freeDeliveryThreshold,
-                standardDeliveryFee:
-                    commerce.standardDeliveryFee !== undefined
-                        ? Number(commerce.standardDeliveryFee)
-                        : settings.commerce.standardDeliveryFee,
+                deliveryCharges: dc,
+                minPrice: mp,
+                delivery_cost: dCost,
+                freeDeliveryThreshold: mp,
+                standardDeliveryFee: dCost,
                 taxRate:
                     commerce.taxRate !== undefined
                         ? Number(commerce.taxRate)
@@ -173,6 +207,9 @@ exports.updateSettings = async (req, res) => {
                 currency: commerce.currency || settings.commerce.currency,
                 currencySymbol: commerce.currencySymbol || settings.commerce.currencySymbol,
             };
+            settings.deliveryCharges = dc;
+            settings.minPrice = mp;
+            settings.delivery_cost = dCost;
         }
 
         if (notifications) {

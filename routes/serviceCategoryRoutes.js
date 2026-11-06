@@ -9,26 +9,29 @@ const {
 } = require("../controllers/serviceCategoryController");
 
 const { handleImageUpload } = require("../utils/uploadMiddleware");
+const { protect, adminOnly } = require("../middleware/authMiddleware");
 const publicCache = require("../utils/cacheMiddleware");
 
 // Service Category CRUD routes
+// GET: Public with cache control
+// POST: Admin only
 router.route("/")
-    .post(handleImageUpload("image"), createCategory)
-    .get(publicCache, getAllCategories);
+    .get(publicCache, getAllCategories)
+    .post(protect, adminOnly, handleImageUpload("image"), createCategory);
 
+// Single category details (public) & Admin updates/deletion
 router.route("/:id")
     .get(publicCache, getCategoryById)
-    .put(handleImageUpload("image"), updateCategory)
-    .patch(handleImageUpload("image"), updateCategory)
-    .delete(deleteCategory);
+    .put(protect, adminOnly, handleImageUpload("image"), updateCategory)
+    .patch(protect, adminOnly, handleImageUpload("image"), updateCategory)
+    .delete(protect, adminOnly, deleteCategory);
 
 const mongoose = require("mongoose");
 const ServiceCategory = require("../model/ServiceCategory/ServiceCategoryModal");
 const { getAllServices } = require("../controllers/serviceController");
 const Service = require("../model/Service/ServiceModal");
 
-// Get services under a specific category
-
+// Get services under a specific category (public)
 router.get("/:id/services", publicCache, async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -89,8 +92,7 @@ router.get("/:id/services", publicCache, async (req, res, next) => {
     }
 });
 
-
-// Get products under a specific category
+// Get products under a specific category (public)
 router.get("/:id/products", publicCache, async (req, res, next) => {
     try {
         const { id } = req.params;

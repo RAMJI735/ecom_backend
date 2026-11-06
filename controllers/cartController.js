@@ -515,6 +515,14 @@ exports.applyCoupon = async (req, res) => {
                 });
             }
 
+            const couponLimit = foundCoupon.limit !== undefined ? foundCoupon.limit : foundCoupon.usageLimit;
+            if (couponLimit !== null && couponLimit !== undefined && (foundCoupon.usedCount || 0) >= couponLimit) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Coupon code '${foundCoupon.code}' usage limit (${couponLimit}) has been reached`,
+                });
+            }
+
             if (cart.totalPrice < foundCoupon.minOrderValue) {
                 return res.status(400).json({
                     success: false,

@@ -9,16 +9,20 @@ const {
     updateTask,
     deleteTask,
 } = require("../controllers/taskAssignmentController");
+const { protect, adminOnly } = require("../middleware/authMiddleware");
+
+// All task operations require authentication
+router.use(protect);
 
 // Task collection CRUD routes
 router.route("/")
     .get(getAllTasks)
     .post(createTask);
 
-// Assign or Reassign Technician to Task
+// Assign or Reassign Technician to Task (Admin only)
 router.route("/:id/assign")
-    .patch(assignTask)
-    .post(assignTask);
+    .patch(adminOnly, assignTask)
+    .post(adminOnly, assignTask);
 
 // Update Task Lifecycle Status
 router.route("/:id/status")
@@ -30,6 +34,6 @@ router.route("/:id")
     .get(getTaskById)
     .put(updateTask)
     .patch(updateTask)
-    .delete(deleteTask);
+    .delete(adminOnly, deleteTask);
 
 module.exports = router;

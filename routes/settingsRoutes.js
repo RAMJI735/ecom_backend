@@ -8,17 +8,19 @@ const {
     deleteHeroBanner,
 } = require("../controllers/settingsController");
 const { handleImageUpload } = require("../utils/uploadMiddleware");
+const { protect, adminOnly } = require("../middleware/authMiddleware");
 
-router.route("/")
-    .get(getSettings)
-    .put(updateSettings);
+// Publicly view store settings & banners
+router.get("/", getSettings);
+
+// Admin-only store settings & banner modifications
+router.put("/", protect, adminOnly, updateSettings);
 
 router.route("/banners")
-    .post(handleImageUpload("image"), addHeroBanner);
+    .post(protect, adminOnly, handleImageUpload("image"), addHeroBanner);
 
 router.route("/banners/:id")
-    .put(handleImageUpload("image"), updateHeroBanner)
-    .delete(deleteHeroBanner);
+    .put(protect, adminOnly, handleImageUpload("image"), updateHeroBanner)
+    .delete(protect, adminOnly, deleteHeroBanner);
 
 module.exports = router;
-
