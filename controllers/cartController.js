@@ -4,6 +4,7 @@ const Cart = require("../model/cart/cartModal");
 const Service = require("../model/Service/ServiceModal");
 const ServiceCategory = require("../model/ServiceCategory/ServiceCategoryModal");
 const Coupon = require("../model/Coupon/CouponModal");
+const Settings = require("../model/Settings/SettingsModal");
 
 /**
  * Helper to identify authenticated userId from request:
@@ -108,6 +109,12 @@ exports.getCart = async (req, res) => {
                     grandTotal: 0,
                 },
             });
+        }
+
+        const storeSettings = await Settings.findOne().lean();
+        if (storeSettings) {
+            cart.calculateTotals(storeSettings);
+            await cart.save();
         }
 
         res.set("Cache-Control", "private, no-store");
@@ -267,6 +274,10 @@ exports.addToCart = async (req, res) => {
             });
         }
 
+        const storeSettings = await Settings.findOne().lean();
+        if (storeSettings) {
+            cart.calculateTotals(storeSettings);
+        }
         await cart.save();
         await cart.populate(cartPopulateOptions);
 
@@ -342,6 +353,10 @@ exports.updateCartItem = async (req, res) => {
             item.notes = notes;
         }
 
+        const storeSettings = await Settings.findOne().lean();
+        if (storeSettings) {
+            cart.calculateTotals(storeSettings);
+        }
         await cart.save();
         await cart.populate(cartPopulateOptions);
 
@@ -403,6 +418,10 @@ exports.removeCartItem = async (req, res) => {
             });
         }
 
+        const storeSettings = await Settings.findOne().lean();
+        if (storeSettings) {
+            cart.calculateTotals(storeSettings);
+        }
         await cart.save();
         await cart.populate(cartPopulateOptions);
 
@@ -552,6 +571,10 @@ exports.applyCoupon = async (req, res) => {
 
         cart.couponCode = normalizedCode;
         cart.discount = calculatedDiscount;
+        const storeSettings = await Settings.findOne().lean();
+        if (storeSettings) {
+            cart.calculateTotals(storeSettings);
+        }
         await cart.save();
 
         return res.status(200).json({
@@ -593,6 +616,10 @@ exports.removeCoupon = async (req, res) => {
 
         cart.couponCode = "";
         cart.discount = 0;
+        const storeSettings = await Settings.findOne().lean();
+        if (storeSettings) {
+            cart.calculateTotals(storeSettings);
+        }
         await cart.save();
 
         return res.status(200).json({

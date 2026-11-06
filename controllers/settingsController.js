@@ -87,12 +87,14 @@ const getOrCreateSettings = async () => {
                 freeDeliveryThreshold: 100,
                 standardDeliveryFee: 50,
                 taxRate: 18,
+                gstType: "exclusive",
                 currency: "INR",
                 currencySymbol: "₹",
             },
             deliveryCharges: false,
             minPrice: 100,
             delivery_cost: 50,
+            gstType: "exclusive",
             notifications: {
                 emailAlerts: true,
                 smsAlerts: true,
@@ -144,6 +146,7 @@ exports.updateSettings = async (req, res) => {
             deliveryCharges,
             minPrice,
             delivery_cost,
+            gstType,
         } = req.body;
 
         if (storeName !== undefined) settings.storeName = storeName.trim();
@@ -174,6 +177,12 @@ exports.updateSettings = async (req, res) => {
             settings.commerce.delivery_cost = Number(delivery_cost);
             settings.commerce.standardDeliveryFee = Number(delivery_cost);
         }
+        if (gstType !== undefined) {
+            const validGstType = ["exclusive", "inclusive"].includes(gstType) ? gstType : "exclusive";
+            settings.gstType = validGstType;
+            if (!settings.commerce) settings.commerce = {};
+            settings.commerce.gstType = validGstType;
+        }
 
         if (announcement) {
             settings.announcement = {
@@ -193,6 +202,9 @@ exports.updateSettings = async (req, res) => {
             const dCost = commerce.delivery_cost !== undefined
                 ? Number(commerce.delivery_cost)
                 : (commerce.standardDeliveryFee !== undefined ? Number(commerce.standardDeliveryFee) : settings.commerce.delivery_cost);
+            const gType = commerce.gstType !== undefined && ["exclusive", "inclusive"].includes(commerce.gstType)
+                ? commerce.gstType
+                : (settings.commerce.gstType || settings.gstType || "exclusive");
 
             settings.commerce = {
                 deliveryCharges: dc,
@@ -200,6 +212,7 @@ exports.updateSettings = async (req, res) => {
                 delivery_cost: dCost,
                 freeDeliveryThreshold: mp,
                 standardDeliveryFee: dCost,
+                gstType: gType,
                 taxRate:
                     commerce.taxRate !== undefined
                         ? Number(commerce.taxRate)
@@ -210,6 +223,7 @@ exports.updateSettings = async (req, res) => {
             settings.deliveryCharges = dc;
             settings.minPrice = mp;
             settings.delivery_cost = dCost;
+            settings.gstType = gType;
         }
 
         if (notifications) {

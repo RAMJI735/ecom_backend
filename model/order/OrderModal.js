@@ -122,6 +122,8 @@ const orderSchema = new mongoose.Schema(
             shippingFee: { type: Number, default: 0 },
             deliveryCost: { type: Number, default: 0 },
             tax: { type: Number, default: 0 },
+            taxRate: { type: Number, default: 18 },
+            gstType: { type: String, enum: ["exclusive", "inclusive"], default: "exclusive" },
             grandTotal: { type: Number, required: true, default: 0 },
         },
         orderStatus: {

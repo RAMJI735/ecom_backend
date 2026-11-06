@@ -143,7 +143,7 @@ const cartSchema = new mongoose.Schema(
 );
 
 // Method to recalculate cart summary totals
-cartSchema.methods.calculateTotals = function () {
+cartSchema.methods.calculateTotals = function (storeSettings) {
     let totalQty = 0;
     let subtotal = 0;
 
@@ -161,10 +161,41 @@ cartSchema.methods.calculateTotals = function () {
     this.totalPrice = Math.round(subtotal * 100) / 100;
 
     const discount = this.discount && this.discount > 0 ? Number(this.discount) : 0;
-    const shipping = this.shippingFee && this.shippingFee > 0 ? Number(this.shippingFee) : 0;
-    const tax = this.tax && this.tax > 0 ? Number(this.tax) : 0;
+    const taxable = Math.max(0, this.totalPrice - discount);
 
-    this.grandTotal = Math.max(0, Math.round((this.totalPrice - discount + shipping + tax) * 100) / 100);
+    if (storeSettings) {
+        const dcEnabled = storeSettings.deliveryCharges !== undefined
+            ? Boolean(storeSettings.deliveryCharges)
+            : Boolean(storeSettings.commerce?.deliveryCharges);
+        const minPrice = storeSettings.minPrice !== undefined
+            ? Number(storeSettings.minPrice)
+            : (storeSettings.commerce?.minPrice !== undefined
+                ? Number(storeSettings.commerce.minPrice)
+                : Number(storeSettings.commerce?.freeDeliveryThreshold ?? 100));
+        const deliveryCost = storeSettings.delivery_cost !== undefined
+            ? Number(storeSettings.delivery_cost)
+            : (storeSettings.commerce?.delivery_cost !== undefined
+                ? Number(storeSettings.commerce.delivery_cost)
+                : Number(storeSettings.commerce?.standardDeliveryFee ?? 50));
+
+        this.shippingFee = dcEnabled ? (this.totalPrice < minPrice && this.totalPrice > 0 ? deliveryCost : 0) : 0;
+
+        const taxRate = storeSettings.commerce?.taxRate ?? 18;
+        const gstType = storeSettings.gstType || storeSettings.commerce?.gstType || "exclusive";
+
+        if (gstType === "inclusive") {
+            const taxableBase = Math.round((taxable / (1 + (taxRate / 100))) * 100) / 100;
+            this.tax = Math.round((taxable - taxableBase) * 100) / 100;
+            this.grandTotal = Math.max(0, Math.round((taxable + this.shippingFee) * 100) / 100);
+        } else {
+            this.tax = Math.round((taxable * (taxRate / 100)) * 100) / 100;
+            this.grandTotal = Math.max(0, Math.round((taxable + this.tax + this.shippingFee) * 100) / 100);
+        }
+    } else {
+        const shipping = this.shippingFee && this.shippingFee > 0 ? Number(this.shippingFee) : 0;
+        const tax = this.tax && this.tax > 0 ? Number(this.tax) : 0;
+        this.grandTotal = Math.max(0, Math.round((this.totalPrice - discount + shipping + tax) * 100) / 100);
+    }
 };
 
 // Pre-save hook to ensure totals are always up to date

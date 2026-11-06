@@ -184,6 +184,11 @@ const settingsSchema = new mongoose.Schema(
                 default: 18,
                 min: 0,
             },
+            gstType: {
+                type: String,
+                enum: ["exclusive", "inclusive"],
+                default: "exclusive",
+            },
             currency: {
                 type: String,
                 default: "INR",
@@ -206,6 +211,11 @@ const settingsSchema = new mongoose.Schema(
             type: Number,
             default: 50,
             min: 0,
+        },
+        gstType: {
+            type: String,
+            enum: ["exclusive", "inclusive"],
+            default: "exclusive",
         },
         notifications: {
             emailAlerts: {
@@ -252,6 +262,13 @@ settingsSchema.pre("save", function () {
     } else if (this.commerce?.standardDeliveryFee !== undefined) {
         this.delivery_cost = this.commerce.standardDeliveryFee;
         this.commerce.delivery_cost = this.commerce.standardDeliveryFee;
+    }
+
+    if (this.gstType !== undefined) {
+        if (!this.commerce) this.commerce = {};
+        this.commerce.gstType = this.gstType;
+    } else if (this.commerce?.gstType !== undefined) {
+        this.gstType = this.commerce.gstType;
     }
 });
 

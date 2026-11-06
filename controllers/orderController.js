@@ -256,9 +256,22 @@ exports.createOrder = async (req, res) => {
 
         // 4. Tax & Grand Total Calculation on Backend
         const taxRate = storeSettings.commerce?.taxRate ?? 18;
+        const gstType = storeSettings.gstType || storeSettings.commerce?.gstType || "exclusive";
         const taxable = Math.max(0, subtotal - discount);
-        const tax = Math.round((taxable * (taxRate / 100)) * 100) / 100;
-        const grandTotal = Math.round((taxable + tax + shippingFee) * 100) / 100;
+        let tax = 0;
+        let grandTotal = 0;
+
+        if (gstType === "inclusive") {
+            // Prices already include GST: extract GST amount
+            const taxableBase = Math.round((taxable / (1 + (taxRate / 100))) * 100) / 100;
+            tax = Math.round((taxable - taxableBase) * 100) / 100;
+            // Since taxable already includes tax, don't add tax again to grandTotal!
+            grandTotal = Math.round((taxable + shippingFee) * 100) / 100;
+        } else {
+            // Prices are GST exclusive: tax is added on top
+            tax = Math.round((taxable * (taxRate / 100)) * 100) / 100;
+            grandTotal = Math.round((taxable + tax + shippingFee) * 100) / 100;
+        }
 
         let uniqueOrderNumber = generateOrderNumber();
         while (await Order.findOne({ orderNumber: uniqueOrderNumber })) {
@@ -304,6 +317,8 @@ exports.createOrder = async (req, res) => {
                 shippingFee,
                 deliveryCost: shippingFee,
                 tax,
+                taxRate,
+                gstType,
                 grandTotal,
             },
             orderStatus: "Confirmed",
