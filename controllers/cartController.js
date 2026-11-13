@@ -7,49 +7,6 @@ const Coupon = require("../model/Coupon/CouponModal");
 const Settings = require("../model/Settings/SettingsModal");
 
 /**
- * Helper to identify authenticated userId from request:
- * - Express request user (if auth middleware is present)
- * - JWT Authorization header or cookie
- * - Explicit query params, body, or route params
- */
-const resolveUser = (req) => {
-    let userId = req.user?.id || req.user?._id || req.params?.userId || req.query?.userId || req.body?.userId || null;
-
-    if (!userId) {
-        const authHeader = req.headers.authorization;
-        let token = null;
-
-        if (authHeader && authHeader.startsWith("Bearer ")) {
-            token = authHeader.split(" ")[1];
-        } else if (req.headers.cookie) {
-            const match = req.headers.cookie.match(/token=([^;]+)/);
-            if (match) {
-                token = match[1];
-            }
-        }
-
-        if (token) {
-            try {
-                const decoded = jwt.verify(
-                    token,
-                    process.env.JWT_SECRET || "electrical_ecom_secret_key_2026"
-                );
-                if (decoded && (decoded.id || decoded._id)) {
-                    userId = decoded.id || decoded._id;
-                }
-            } catch (err) {
-                // Token invalid or expired
-            }
-        }
-    }
-
-    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-        return userId.toString();
-    }
-    return null;
-};
-
-/**
  * Common populate configuration for cart items
  */
 const cartPopulateOptions = {
@@ -70,25 +27,26 @@ const findCart = async (userId) => {
     }).populate(cartPopulateOptions);
 };
 
-// GET /api/cart - Get current user cart
+// GET /api/cart or /api/cart/user/:userId - Get cart
 exports.getCart = async (req, res) => {
     try {
-        const userId = resolveUser(req);
+        let userId = req.user?._id?.toString() || req.userId;
+
+        // If requesting another user's cart via route parameter (/user/:userId), ensure admin privilege
+        if (req.params?.userId) {
+            if (req.user?.role !== "admin" && userId !== req.params.userId) {
+                return res.status(403).json({
+                    success: false,
+                    message: "Access denied. You cannot view another user's cart.",
+                });
+            }
+            userId = req.params.userId;
+        }
 
         if (!userId) {
-            return res.status(200).json({
-                success: true,
-                message: "No user logged in; returning empty cart template",
-                data: {
-                    user: null,
-                    items: [],
-                    totalQuantity: 0,
-                    totalPrice: 0,
-                    discount: 0,
-                    shippingFee: 0,
-                    tax: 0,
-                    grandTotal: 0,
-                },
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required. Please log in.",
             });
         }
 
@@ -134,7 +92,7 @@ exports.getCart = async (req, res) => {
 // POST /api/cart/add or POST /api/cart - Add item (service or product) to cart
 exports.addToCart = async (req, res) => {
     try {
-        const userId = resolveUser(req);
+        const userId = req.user?._id?.toString() || req.userId;
 
         if (!userId) {
             return res.status(401).json({
@@ -298,7 +256,7 @@ exports.addToCart = async (req, res) => {
 // PUT/PATCH /api/cart/items/:itemId - Update item quantity or notes
 exports.updateCartItem = async (req, res) => {
     try {
-        const userId = resolveUser(req);
+        const userId = req.user?._id?.toString() || req.userId;
         if (!userId) {
             return res.status(401).json({
                 success: false,
@@ -377,7 +335,7 @@ exports.updateCartItem = async (req, res) => {
 // DELETE /api/cart/items/:itemId or /api/cart/remove/:itemId - Remove item from cart
 exports.removeCartItem = async (req, res) => {
     try {
-        const userId = resolveUser(req);
+        const userId = req.user?._id?.toString() || req.userId;
         if (!userId) {
             return res.status(401).json({
                 success: false,
@@ -442,7 +400,7 @@ exports.removeCartItem = async (req, res) => {
 // DELETE /api/cart or /api/cart/clear - Clear all items from cart
 exports.clearCart = async (req, res) => {
     try {
-        const userId = resolveUser(req);
+        const userId = req.user?._id?.toString() || req.userId;
         if (!userId) {
             return res.status(401).json({
                 success: false,
@@ -491,7 +449,7 @@ exports.clearCart = async (req, res) => {
 // POST /api/cart/apply-coupon - Apply coupon / discount
 exports.applyCoupon = async (req, res) => {
     try {
-        const userId = resolveUser(req);
+        const userId = req.user?._id?.toString() || req.userId;
         if (!userId) {
             return res.status(401).json({
                 success: false,
@@ -594,7 +552,7 @@ exports.applyCoupon = async (req, res) => {
 // POST /api/cart/remove-coupon - Remove applied coupon
 exports.removeCoupon = async (req, res) => {
     try {
-        const userId = resolveUser(req);
+        const userId = req.user?._id?.toString() || req.userId;
         if (!userId) {
             return res.status(401).json({
                 success: false,
@@ -639,12 +597,11 @@ exports.removeCoupon = async (req, res) => {
 // POST /api/cart/merge - Sync user cart
 exports.mergeGuestCart = async (req, res) => {
     try {
-        const userId = resolveUser(req);
+        const userId = req.user?._id?.toString() || req.userId;
         if (!userId) {
-            return res.status(200).json({
-                success: true,
-                message: "No user authenticated",
-                data: { items: [] },
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required. Please log in to sync cart.",
             });
         }
 

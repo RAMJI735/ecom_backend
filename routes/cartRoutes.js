@@ -14,10 +14,9 @@ const { protect, optionalAuth } = require("../middleware/authMiddleware");
 const wrapAsync = require("../utils/wrapAsync");
 
 // Cart root endpoints wrapped with wrapAsync
-// GET: Uses optionalAuth so logged-in users get their persistent cart, while unauthenticated users get empty cart structure safely
-// POST & DELETE: Require authentication
+// GET, POST, DELETE: Require authentication via protect middleware
 router.route("/")
-    .get(optionalAuth, wrapAsync(getCart))
+    .get(protect, wrapAsync(getCart))
     .post(protect, wrapAsync(addToCart))
     .delete(protect, wrapAsync(clearCart));
 

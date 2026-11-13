@@ -70,8 +70,7 @@ const userSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
-        resetPasswordToken: String,
-        resetPasswordExpire: Date,
+        refreshToken: String
     },
     {
         timestamps: true,
@@ -97,6 +96,8 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
 userSchema.methods.createToken = async function () {
     return jwt.sign({ id: this._id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
 }
+
+
 
 const User = mongoose.model("User", userSchema);
 

@@ -3,24 +3,54 @@ const User = require("../model/User/UserModal");
 const wrapAsync = require("../utils/wrapAsync");
 
 /**
+ * Helper to extract token from request (Authorization header, cookies, or x-auth-token)
+ */
+const extractToken = (req) => {
+  let token = null;
+  const authHeader = req.headers.authorization || req.headers.Authorization;
+
+  if (authHeader && typeof authHeader === "string") {
+    const trimmed = authHeader.trim();
+    if (trimmed.toLowerCase().startsWith("bearer ")) {
+      token = trimmed.slice(7).trim();
+    } else if (!trimmed.includes(" ")) {
+      token = trimmed;
+    }
+  }
+
+  if (!token && req.cookies && req.cookies.token) {
+    token = req.cookies.token;
+  }
+
+  if (!token && req.cookies && req.cookies.jwt) {
+    token = req.cookies.jwt;
+  }
+
+  if (!token && req.headers.cookie) {
+    const match = req.headers.cookie.match(/(?:^|;\s*)token=([^;]+)/);
+    if (match) {
+      try {
+        token = decodeURIComponent(match[1]).replace(/^"|"$/g, "");
+      } catch {
+        token = match[1].replace(/^"|"$/g, "");
+      }
+    }
+  }
+
+  if (!token && req.headers["x-auth-token"]) {
+    token = req.headers["x-auth-token"];
+  }
+
+  return token;
+};
+
+/**
  * Protect middleware: Requires valid JWT token in Authorization header, cookie, or x-auth-token.
  * Verifies token, fetches user from database, and attaches req.user and req.userId.
  */
 const protect = wrapAsync(async (req, res, next) => {
   try {
-    let token = null;
-    const authHeader = req.headers.authorization;
-
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      token = authHeader.split(" ")[1];
-    } else if (req.headers.cookie) {
-      const match = req.headers.cookie.match(/token=([^;]+)/);
-      if (match) {
-        token = match[1];
-      }
-    } else if (req.headers["x-auth-token"]) {
-      token = req.headers["x-auth-token"];
-    }
+    const token = extractToken(req);
 
     if (!token) {
       return res.status(401).json({
@@ -68,23 +98,11 @@ const protect = wrapAsync(async (req, res, next) => {
 
 /**
  * Optional Auth middleware: If token is provided and valid, attaches user to req.
- * If no token is provided, continues without error (for public endpoints with user context).
+ * If no token is provided or invalid, continues without error (for public endpoints with optional user context).
  */
 const optionalAuth = wrapAsync(async (req, res, next) => {
   try {
-    let token = null;
-    const authHeader = req.headers.authorization;
-
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      token = authHeader.split(" ")[1];
-    } else if (req.headers.cookie) {
-      const match = req.headers.cookie.match(/token=([^;]+)/);
-      if (match) {
-        token = match[1];
-      }
-    } else if (req.headers["x-auth-token"]) {
-      token = req.headers["x-auth-token"];
-    }
+    const token = extractToken(req);
 
     if (token) {
       const secret = process.env.JWT_SECRET || "electrical_ecom_secret_key_2026";

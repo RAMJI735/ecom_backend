@@ -8,43 +8,6 @@ const phoneRegex = /^(?:(?:\+|0{0,2})91(\s*[\-]\s*)?|[0]?)?[6789]\d{9}$/;
 // Indian 6-digit PIN code: 1-9 followed by 5 digits
 const pinCodeRegex = /^[1-9][0-9]{5}$/;
 
-const resolveUser = (req) => {
-    let userId = req.user?.id || req.user?._id || req.params?.userId || req.query?.userId || req.body?.userId || null;
-
-    if (!userId) {
-        const authHeader = req.headers.authorization;
-        let token = null;
-
-        if (authHeader && authHeader.startsWith("Bearer ")) {
-            token = authHeader.split(" ")[1];
-        } else if (req.headers.cookie) {
-            const match = req.headers.cookie.match(/token=([^;]+)/);
-            if (match) {
-                token = match[1];
-            }
-        }
-
-        if (token) {
-            try {
-                const decoded = jwt.verify(
-                    token,
-                    process.env.JWT_SECRET || "electrical_ecom_secret_key_2026"
-                );
-                if (decoded && (decoded.id || decoded._id)) {
-                    userId = decoded.id || decoded._id;
-                }
-            } catch (err) {
-                // Token invalid
-            }
-        }
-    }
-
-    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
-        return userId.toString();
-    }
-    return null;
-};
-
 /**
  * Validation helper for address payloads
  */
@@ -153,7 +116,7 @@ const validateAddressFields = ({
  */
 exports.getAddresses = async (req, res) => {
     try {
-        const userId = resolveUser(req);
+        const userId = req.user?._id?.toString() || req.userId;
 
         if (!userId) {
             return res.status(401).json({
@@ -222,7 +185,7 @@ exports.getAddressById = async (req, res) => {
  */
 exports.createAddress = async (req, res) => {
     try {
-        const userId = resolveUser(req);
+        const userId = req.user?._id?.toString() || req.userId;
 
         if (!userId) {
             return res.status(401).json({
@@ -399,7 +362,7 @@ exports.createAddress = async (req, res) => {
 exports.updateAddress = async (req, res) => {
     try {
         const { id } = req.params;
-        const userId = resolveUser(req);
+        const userId = req.user?._id?.toString() || req.userId;
 
         if (!userId) {
             return res.status(401).json({
@@ -564,7 +527,7 @@ exports.updateAddress = async (req, res) => {
 exports.deleteAddress = async (req, res) => {
     try {
         const { id } = req.params;
-        const userId = resolveUser(req);
+        const userId = req.user?._id?.toString() || req.userId;
 
         if (!userId) {
             return res.status(401).json({
@@ -622,7 +585,7 @@ exports.deleteAddress = async (req, res) => {
 exports.setDefaultAddress = async (req, res) => {
     try {
         const { id } = req.params;
-        const userId = resolveUser(req);
+        const userId = req.user?._id?.toString() || req.userId;
 
         if (!userId) {
             return res.status(401).json({
