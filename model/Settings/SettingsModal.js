@@ -227,6 +227,36 @@ const settingsSchema = new mongoose.Schema(
                 default: true,
             },
         },
+        termsAndConditions: {
+            title: {
+                type: String,
+                trim: true,
+                default: "Terms & Conditions",
+            },
+            content: {
+                type: String,
+                default: "",
+            },
+            lastUpdated: {
+                type: Date,
+                default: Date.now,
+            },
+        },
+        privacyPolicy: {
+            title: {
+                type: String,
+                trim: true,
+                default: "Privacy Policy",
+            },
+            content: {
+                type: String,
+                default: "",
+            },
+            lastUpdated: {
+                type: Date,
+                default: Date.now,
+            },
+        },
     },
     {
         timestamps: true,
