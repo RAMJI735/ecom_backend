@@ -2,7 +2,7 @@ const { createClient } = require("redis");
 
 const redisUrl =
     process.env.REDIS_URL ||
-    "rediss://default:gQAAAAAAAw6dAAIgcDE3ZTJiMzE3NGMxYzA0Y2Q2OWJjOWRmMjdkMmFlMTVlMA@measured-manatee-200349.upstash.io:6379";
+    "";
 
 const client = createClient({
     url: redisUrl,
