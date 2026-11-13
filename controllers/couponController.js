@@ -282,3 +282,11 @@ exports.validateCoupon = async (req, res) => {
     }
 };
 
+const wrapAsync = require("../utils/wrapAsync");
+
+exports.getCoupons = wrapAsync(exports.getCoupons);
+exports.createCoupon = wrapAsync(exports.createCoupon);
+exports.updateCoupon = wrapAsync(exports.updateCoupon);
+exports.deleteCoupon = wrapAsync(exports.deleteCoupon);
+exports.validateCoupon = wrapAsync(exports.validateCoupon);
+

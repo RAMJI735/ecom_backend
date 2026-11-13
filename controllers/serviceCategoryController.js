@@ -262,3 +262,11 @@ exports.deleteCategory = async (req, res) => {
         });
     }
 };
+
+const wrapAsync = require("../utils/wrapAsync");
+
+exports.createCategory = wrapAsync(exports.createCategory);
+exports.getAllCategories = wrapAsync(exports.getAllCategories);
+exports.getCategoryById = wrapAsync(exports.getCategoryById);
+exports.updateCategory = wrapAsync(exports.updateCategory);
+exports.deleteCategory = wrapAsync(exports.deleteCategory);

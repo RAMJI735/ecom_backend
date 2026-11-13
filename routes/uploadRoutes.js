@@ -5,6 +5,7 @@ const path = require("path");
 const fs = require("fs");
 const { CloudinaryUpload, CloudinaryDelete } = require("../utils/cloudinary");
 const { protect, optionalAuth } = require("../middleware/authMiddleware");
+const wrapAsync = require("../utils/wrapAsync");
 
 const router = express.Router();
 
@@ -43,7 +44,7 @@ const upload = multer({
   },
 });
 
-// POST /api/upload - Accepts FormData with 'image' or 'file'
+// POST /api/upload - Accepts FormData with 'image' or 'file' wrapped with wrapAsync
 router.post(
   "/",
   optionalAuth,
@@ -51,17 +52,17 @@ router.post(
     { name: "image", maxCount: 1 },
     { name: "file", maxCount: 1 },
   ]),
-  async (req, res) => {
+  wrapAsync(async (req, res) => {
     const file = req.files?.image?.[0] || req.files?.file?.[0] || req.file;
 
-    try {
-      if (!file) {
-        return res.status(400).json({
-          success: false,
-          message: "No image file provided in FormData. Please attach a file with key 'image' or 'file'.",
-        });
-      }
+    if (!file) {
+      return res.status(400).json({
+        success: false,
+        message: "No image file provided in FormData. Please attach a file with key 'image' or 'file'.",
+      });
+    }
 
+    try {
       const uploadResult = await CloudinaryUpload(file);
       const imageUrl = uploadResult.secure_url || uploadResult;
       const publicId = uploadResult.public_id || "";
@@ -80,24 +81,21 @@ router.post(
         },
       });
     } catch (error) {
-      console.error("Image upload error:", error);
-      // Clean up file if still present
       if (file?.path && fs.existsSync(file.path)) {
         try {
           fs.unlinkSync(file.path);
         } catch (_) {}
       }
-      return res.status(500).json({
-        success: false,
-        message: error.response?.data?.error?.message || error.message || "Failed to upload image",
-      });
+      throw error;
     }
-  }
+  })
 );
 
-// DELETE /api/upload - Delete image by public_id or url (requires authentication)
-router.delete("/", protect, async (req, res) => {
-  try {
+// DELETE /api/upload - Delete image by public_id or url (requires authentication) wrapped with wrapAsync
+router.delete(
+  "/",
+  protect,
+  wrapAsync(async (req, res) => {
     const target = req.body?.public_id || req.body?.url || req.query?.public_id || req.query?.url;
     if (!target) {
       return res.status(400).json({
@@ -112,13 +110,7 @@ router.delete("/", protect, async (req, res) => {
       message: "Image deleted successfully",
       data: result,
     });
-  } catch (error) {
-    console.error("Image delete error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to delete image",
-    });
-  }
-});
+  })
+);
 
 module.exports = router;

@@ -662,3 +662,14 @@ exports.mergeGuestCart = async (req, res) => {
         });
     }
 };
+
+const wrapAsync = require("../utils/wrapAsync");
+
+exports.getCart = wrapAsync(exports.getCart);
+exports.addToCart = wrapAsync(exports.addToCart);
+exports.updateCartItem = wrapAsync(exports.updateCartItem);
+exports.removeCartItem = wrapAsync(exports.removeCartItem);
+exports.clearCart = wrapAsync(exports.clearCart);
+exports.applyCoupon = wrapAsync(exports.applyCoupon);
+exports.removeCoupon = wrapAsync(exports.removeCoupon);
+exports.mergeGuestCart = wrapAsync(exports.mergeGuestCart);

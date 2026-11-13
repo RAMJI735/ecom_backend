@@ -601,3 +601,12 @@ exports.getServicesByCategory = async (req, res, next) => {
     req.query.category = req.params.id || req.params.categoryId;
     return exports.getAllServices(req, res, next);
 };
+
+const wrapAsync = require("../utils/wrapAsync");
+
+exports.createService = wrapAsync(exports.createService);
+exports.getAllServices = wrapAsync(exports.getAllServices);
+exports.getServiceById = wrapAsync(exports.getServiceById);
+exports.updateService = wrapAsync(exports.updateService);
+exports.deleteService = wrapAsync(exports.deleteService);
+exports.getServicesByCategory = wrapAsync(exports.getServicesByCategory);

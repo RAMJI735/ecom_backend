@@ -13,6 +13,7 @@ const couponRoutes = require("./routes/couponRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
 const authRoutes = require("./routes/authRoutes");
 const { login, register, logout } = require("./controllers/authController");
+const wrapAsync = require("./utils/wrapAsync");
 
 const compression = require("compression");
 const mongoose = require("mongoose");
@@ -39,6 +40,12 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 const publicCache = require("./utils/cacheMiddleware");
+const { connectRedis } = require("./utils/redis");
+
+connectRedis()
+  .then(() => console.log("Redis connected successfully"))
+  .catch((error) => console.error("Redis connection failed:", error));
+
 
 // Health Check / Root Route
 app.get("/", (req, res) => {
@@ -92,9 +99,9 @@ app.use("/api/auth", authRoutes);
 app.use("/auth", authRoutes);
 
 // Direct compatibility endpoints for legacy frontend routes
-app.post("/login/user", login);
-app.post("/signup/user", register);
-app.post("/logout/user", logout);
+app.post("/login/user", wrapAsync(login));
+app.post("/signup/user", wrapAsync(register));
+app.post("/logout/user", wrapAsync(logout));
 
 // Centralized Error Handling Middleware
 app.use((err, req, res, next) => {

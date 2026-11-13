@@ -8,18 +8,19 @@ const {
     validateCoupon,
 } = require("../controllers/couponController");
 const { protect, adminOnly, optionalAuth } = require("../middleware/authMiddleware");
+const wrapAsync = require("../utils/wrapAsync");
 
-// Validate coupon during checkout
-router.post("/validate", optionalAuth, validateCoupon);
+// Validate coupon during checkout wrapped with wrapAsync
+router.post("/validate", optionalAuth, wrapAsync(validateCoupon));
 
-// View coupons (public / customers)
-router.get("/", getCoupons);
+// View coupons (public / customers) wrapped with wrapAsync
+router.get("/", wrapAsync(getCoupons));
 
-// Admin-only coupon lifecycle CRUD
-router.post("/", protect, adminOnly, createCoupon);
+// Admin-only coupon lifecycle CRUD wrapped with wrapAsync
+router.post("/", protect, adminOnly, wrapAsync(createCoupon));
 
 router.route("/:id")
-    .put(protect, adminOnly, updateCoupon)
-    .delete(protect, adminOnly, deleteCoupon);
+    .put(protect, adminOnly, wrapAsync(updateCoupon))
+    .delete(protect, adminOnly, wrapAsync(deleteCoupon));
 
 module.exports = router;

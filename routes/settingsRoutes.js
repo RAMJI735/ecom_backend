@@ -9,18 +9,19 @@ const {
 } = require("../controllers/settingsController");
 const { handleImageUpload } = require("../utils/uploadMiddleware");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
+const wrapAsync = require("../utils/wrapAsync");
 
-// Publicly view store settings & banners
-router.get("/", getSettings);
+// Publicly view store settings & banners wrapped with wrapAsync
+router.get("/", wrapAsync(getSettings));
 
-// Admin-only store settings & banner modifications
-router.put("/", protect, adminOnly, updateSettings);
+// Admin-only store settings & banner modifications wrapped with wrapAsync
+router.put("/", protect, adminOnly, wrapAsync(updateSettings));
 
 router.route("/banners")
-    .post(protect, adminOnly, handleImageUpload("image"), addHeroBanner);
+    .post(protect, adminOnly, handleImageUpload("image"), wrapAsync(addHeroBanner));
 
 router.route("/banners/:id")
-    .put(protect, adminOnly, handleImageUpload("image"), updateHeroBanner)
-    .delete(protect, adminOnly, deleteHeroBanner);
+    .put(protect, adminOnly, handleImageUpload("image"), wrapAsync(updateHeroBanner))
+    .delete(protect, adminOnly, wrapAsync(deleteHeroBanner));
 
 module.exports = router;

@@ -8,25 +8,25 @@ const {
     updateTechnician,
     deleteTechnician,
 } = require("../controllers/technicianController");
-
 const { protect, adminOnly } = require("../middleware/authMiddleware");
+const wrapAsync = require("../utils/wrapAsync");
 
 // Technicians endpoints (requires authentication)
 router.use(protect);
 
-// Available technicians endpoint for quick dispatch dropdowns
-router.get("/available", getAvailableTechnicians);
+// Available technicians endpoint for quick dispatch dropdowns wrapped with wrapAsync
+router.get("/available", wrapAsync(getAvailableTechnicians));
 
-// Technician collection CRUD routes
+// Technician collection CRUD routes wrapped with wrapAsync
 router.route("/")
-    .get(getAllTechnicians)
-    .post(adminOnly, createTechnician);
+    .get(wrapAsync(getAllTechnicians))
+    .post(adminOnly, wrapAsync(createTechnician));
 
-// Single technician CRUD routes
+// Single technician CRUD routes wrapped with wrapAsync
 router.route("/:id")
-    .get(getTechnicianById)
-    .put(adminOnly, updateTechnician)
-    .patch(adminOnly, updateTechnician)
-    .delete(adminOnly, deleteTechnician);
+    .get(wrapAsync(getTechnicianById))
+    .put(adminOnly, wrapAsync(updateTechnician))
+    .patch(adminOnly, wrapAsync(updateTechnician))
+    .delete(adminOnly, wrapAsync(deleteTechnician));
 
 module.exports = router;

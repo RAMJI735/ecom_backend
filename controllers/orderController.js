@@ -5,6 +5,7 @@ const Cart = require("../model/cart/cartModal");
 const Service = require("../model/Service/ServiceModal");
 const Settings = require("../model/Settings/SettingsModal");
 const Coupon = require("../model/Coupon/CouponModal");
+const wrapAsync = require("../utils/wrapAsync");
 
 const resolveUser = (req) => {
     let userId = req.user?.id || req.user?._id || req.params?.userId || req.query?.userId || req.body?.userId || null;
@@ -54,7 +55,7 @@ const generateOrderNumber = () => {
  * POST /api/orders
  * Create new order from cart or directly from items payload
  */
-exports.createOrder = async (req, res) => {
+exports.createOrder = wrapAsync(async (req, res) => {
     try {
         let userId = resolveUser(req);
         const {
@@ -377,13 +378,13 @@ exports.createOrder = async (req, res) => {
             message: error.message || "Failed to create order",
         });
     }
-};
+});
 
 /**
  * GET /api/orders
  * Get orders for active user
  */
-exports.getOrders = async (req, res) => {
+exports.getOrders = wrapAsync(async (req, res) => {
     try {
         const userId = resolveUser(req);
         const { all, status, search, limit, page, sort } = req.query;
@@ -452,13 +453,13 @@ exports.getOrders = async (req, res) => {
             message: error.message || "Failed to fetch orders",
         });
     }
-};
+});
 
 /**
  * GET /api/orders/:id
  * Get single order details
  */
-exports.getOrderById = async (req, res) => {
+exports.getOrderById = wrapAsync(async (req, res) => {
     try {
         const { id } = req.params;
         let query = {};
@@ -494,13 +495,13 @@ exports.getOrderById = async (req, res) => {
             message: error.message || "Failed to fetch order",
         });
     }
-};
+});
 
 /**
  * PUT/PATCH /api/orders/:id/cancel
  * Cancel order
  */
-exports.cancelOrder = async (req, res) => {
+exports.cancelOrder = wrapAsync(async (req, res) => {
     try {
         const { id } = req.params;
         const { reason = "Cancelled by customer" } = req.body;
@@ -549,13 +550,13 @@ exports.cancelOrder = async (req, res) => {
             message: error.message || "Failed to cancel order",
         });
     }
-};
+});
 
 /**
  * PATCH /api/orders/:id/status
  * Admin/system update order status
  */
-exports.updateOrderStatus = async (req, res) => {
+exports.updateOrderStatus = wrapAsync(async (req, res) => {
     try {
         const { id } = req.params;
         const { status, note } = req.body;
@@ -604,4 +605,4 @@ exports.updateOrderStatus = async (req, res) => {
             message: error.message || "Failed to update order status",
         });
     }
-};
+});

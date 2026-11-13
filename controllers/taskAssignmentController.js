@@ -448,3 +448,13 @@ exports.deleteTask = async (req, res) => {
         });
     }
 };
+
+const wrapAsync = require("../utils/wrapAsync");
+
+exports.createTask = wrapAsync(exports.createTask);
+exports.getAllTasks = wrapAsync(exports.getAllTasks);
+exports.getTaskById = wrapAsync(exports.getTaskById);
+exports.assignTask = wrapAsync(exports.assignTask);
+exports.updateTaskStatus = wrapAsync(exports.updateTaskStatus);
+exports.updateTask = wrapAsync(exports.updateTask);
+exports.deleteTask = wrapAsync(exports.deleteTask);

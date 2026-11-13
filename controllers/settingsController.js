@@ -420,3 +420,11 @@ exports.deleteHeroBanner = async (req, res) => {
     }
 };
 
+const wrapAsync = require("../utils/wrapAsync");
+
+exports.getSettings = wrapAsync(exports.getSettings);
+exports.updateSettings = wrapAsync(exports.updateSettings);
+exports.addHeroBanner = wrapAsync(exports.addHeroBanner);
+exports.updateHeroBanner = wrapAsync(exports.updateHeroBanner);
+exports.deleteHeroBanner = wrapAsync(exports.deleteHeroBanner);
+

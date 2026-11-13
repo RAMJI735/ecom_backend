@@ -325,3 +325,12 @@ exports.deleteTechnician = async (req, res) => {
         });
     }
 };
+
+const wrapAsync = require("../utils/wrapAsync");
+
+exports.createTechnician = wrapAsync(exports.createTechnician);
+exports.getAllTechnicians = wrapAsync(exports.getAllTechnicians);
+exports.getAvailableTechnicians = wrapAsync(exports.getAvailableTechnicians);
+exports.getTechnicianById = wrapAsync(exports.getTechnicianById);
+exports.updateTechnician = wrapAsync(exports.updateTechnician);
+exports.deleteTechnician = wrapAsync(exports.deleteTechnician);

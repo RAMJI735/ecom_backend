@@ -10,30 +10,31 @@ const {
     deleteTask,
 } = require("../controllers/taskAssignmentController");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
+const wrapAsync = require("../utils/wrapAsync");
 
 // All task operations require authentication
 router.use(protect);
 
-// Task collection CRUD routes
+// Task collection CRUD routes wrapped with wrapAsync
 router.route("/")
-    .get(getAllTasks)
-    .post(createTask);
+    .get(wrapAsync(getAllTasks))
+    .post(wrapAsync(createTask));
 
 // Assign or Reassign Technician to Task (Admin only)
 router.route("/:id/assign")
-    .patch(adminOnly, assignTask)
-    .post(adminOnly, assignTask);
+    .patch(adminOnly, wrapAsync(assignTask))
+    .post(adminOnly, wrapAsync(assignTask));
 
 // Update Task Lifecycle Status
 router.route("/:id/status")
-    .patch(updateTaskStatus)
-    .put(updateTaskStatus);
+    .patch(wrapAsync(updateTaskStatus))
+    .put(wrapAsync(updateTaskStatus));
 
 // Single task details, update, delete
 router.route("/:id")
-    .get(getTaskById)
-    .put(updateTask)
-    .patch(updateTask)
-    .delete(adminOnly, deleteTask);
+    .get(wrapAsync(getTaskById))
+    .put(wrapAsync(updateTask))
+    .patch(wrapAsync(updateTask))
+    .delete(adminOnly, wrapAsync(deleteTask));
 
 module.exports = router;

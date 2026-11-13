@@ -665,3 +665,12 @@ exports.setDefaultAddress = async (req, res) => {
         });
     }
 };
+
+const wrapAsync = require("../utils/wrapAsync");
+
+exports.getAddresses = wrapAsync(exports.getAddresses);
+exports.getAddressById = wrapAsync(exports.getAddressById);
+exports.createAddress = wrapAsync(exports.createAddress);
+exports.updateAddress = wrapAsync(exports.updateAddress);
+exports.deleteAddress = wrapAsync(exports.deleteAddress);
+exports.setDefaultAddress = wrapAsync(exports.setDefaultAddress);

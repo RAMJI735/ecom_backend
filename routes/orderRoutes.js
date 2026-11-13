@@ -8,6 +8,7 @@ const {
     updateOrderStatus,
 } = require("../controllers/orderController");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
+const wrapAsync = require("../utils/wrapAsync");
 
 // Custom middleware for createOrder: enforces authentication, with support for guestId checkout
 const orderAuthOrGuest = (req, res, next) => {
@@ -26,24 +27,24 @@ const orderAuthOrGuest = (req, res, next) => {
     return protect(req, res, next);
 };
 
-// Order root routes
+// Order root routes wrapped with wrapAsync
 // GET /api/orders: Get all orders (admin or filtered by current user)
 // POST /api/orders: Place new order
 router.route("/")
-    .get(protect, getOrders)
-    .post(orderAuthOrGuest, createOrder);
+    .get(protect, wrapAsync(getOrders))
+    .post(orderAuthOrGuest, wrapAsync(createOrder));
 
 // User-specific orders list
-router.get("/user/:userId", protect, getOrders);
+router.get("/user/:userId", protect, wrapAsync(getOrders));
 
 // Single order details
-router.get("/:id", protect, getOrderById);
+router.get("/:id", protect, wrapAsync(getOrderById));
 
 // Customer / Admin order cancellation
-router.put("/:id/cancel", protect, cancelOrder);
-router.patch("/:id/cancel", protect, cancelOrder);
+router.put("/:id/cancel", protect, wrapAsync(cancelOrder));
+router.patch("/:id/cancel", protect, wrapAsync(cancelOrder));
 
 // Admin-only order status transition (Confirmed -> Processing -> Delivered, etc.)
-router.patch("/:id/status", protect, adminOnly, updateOrderStatus);
+router.patch("/:id/status", protect, adminOnly, wrapAsync(updateOrderStatus));
 
 module.exports = router;

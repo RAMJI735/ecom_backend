@@ -1,11 +1,12 @@
 const jwt = require("jsonwebtoken");
 const User = require("../model/User/UserModal");
+const wrapAsync = require("../utils/wrapAsync");
 
 /**
  * Protect middleware: Requires valid JWT token in Authorization header, cookie, or x-auth-token.
  * Verifies token, fetches user from database, and attaches req.user and req.userId.
  */
-const protect = async (req, res, next) => {
+const protect = wrapAsync(async (req, res, next) => {
   try {
     let token = null;
     const authHeader = req.headers.authorization;
@@ -63,13 +64,13 @@ const protect = async (req, res, next) => {
       message: "Invalid authentication token. Please log in again.",
     });
   }
-};
+});
 
 /**
  * Optional Auth middleware: If token is provided and valid, attaches user to req.
  * If no token is provided, continues without error (for public endpoints with user context).
  */
-const optionalAuth = async (req, res, next) => {
+const optionalAuth = wrapAsync(async (req, res, next) => {
   try {
     let token = null;
     const authHeader = req.headers.authorization;
@@ -102,7 +103,7 @@ const optionalAuth = async (req, res, next) => {
     // Continue without setting user if token is invalid or expired
   }
   next();
-};
+});
 
 /**
  * Authorize roles middleware: Restricts route access to specified roles (e.g. 'admin').
