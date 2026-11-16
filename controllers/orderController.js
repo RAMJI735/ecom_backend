@@ -285,12 +285,12 @@ exports.createOrder = wrapAsync(async (req, res) => {
                 gstType,
                 grandTotal,
             },
-            orderStatus: "Confirmed",
+            orderStatus: "Placed",
             timeline: [
                 {
-                    status: "Confirmed",
+                    status: "Placed",
                     time: new Date(),
-                    note: "Order confirmed with " + (paymentMethod.toUpperCase() === "COD" ? "Cash on Delivery" : "Online Payment"),
+                    note: "Order placed with " + (paymentMethod.toUpperCase() === "COD" ? "Cash on Delivery" : "Online Payment"),
                 },
             ],
         });
