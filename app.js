@@ -35,7 +35,7 @@ app.use(
     origin: true,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "x-auth-token", "Accept"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-auth-token", "x-refresh-token", "Accept"],
     exposedHeaders: ["set-cookie"],
   })
 );

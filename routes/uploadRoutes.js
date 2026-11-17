@@ -14,7 +14,7 @@ const tempUploadDir = path.join(os.tmpdir(), "electrical_uploads");
 if (!fs.existsSync(tempUploadDir)) {
   try {
     fs.mkdirSync(tempUploadDir, { recursive: true });
-  } catch (_) {}
+  } catch (_) { }
 }
 
 // Multer disk storage writes files to disk so file.path is available for fs.createReadStream
@@ -84,7 +84,7 @@ router.post(
       if (file?.path && fs.existsSync(file.path)) {
         try {
           fs.unlinkSync(file.path);
-        } catch (_) {}
+        } catch (_) { }
       }
       throw error;
     }
